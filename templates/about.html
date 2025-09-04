@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}About - LinkForge{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>About LinkForge</h1>
+
+    <div style="background: var(--bg-secondary); padding: 2rem; border-radius: 8px; margin: 2rem 0;">
+        <h2>🎯 Personal URL Namespaces</h2>
+        <p>
+            LinkForge solves the URL collision problem by giving every user their own namespace.
+            Instead of competing for short codes, everyone gets their own space:
+        </p>
+        <ul style="margin: 1rem 0; padding-left: 2rem; color: var(--text-secondary);">
+            <li><code>/alice/project</code> ✅</li>
+            <li><code>/bob/project</code> ✅</li>
+            <li><code>/tanish/portfolio</code> ✅</li>
+        </ul>
+    </div>
+
+    <div style="background: var(--bg-secondary); padding: 2rem; border-radius: 8px; margin: 2rem 0;">
+        <h2>🔄 Dynamic Links</h2>
+        <p>
+            All links are dynamic by default. Change where they redirect anytime
+            without breaking existing shares or bookmarks.
+        </p>
+    </div>
+
+    <div style="background: var(--bg-secondary); padding: 2rem; border-radius: 8px; margin: 2rem 0;">
+        <h2>🛠️ Technical Stack</h2>
+        <ul style="margin: 1rem 0; padding-left: 2rem; color: var(--text-secondary);">
+            <li><strong>Backend:</strong> Python Flask with modular blueprints</li>
+            <li><strong>Database:</strong> SQLite (upgradeable to PostgreSQL)</li>
+            <li><strong>Frontend:</strong> Pure CSS with minimal JavaScript</li>
+            <li><strong>Deployment:</strong> Ready for Render, PythonAnywhere, Heroku</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

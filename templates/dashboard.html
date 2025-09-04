@@ -1,0 +1,478 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - LinkForge{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="dashboard-header">
+        <h1>Welcome back, {{ username }}!</h1>
+        <p>Manage your dynamic links, track analytics, and export data.</p>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <span class="stat-number">{{ stats.total_links }}</span>
+            <span class="stat-label">Total Links</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number">{{ stats.active_links }}</span>
+            <span class="stat-label">Active Links</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number">{{ stats.total_clicks }}</span>
+            <span class="stat-label">Total Clicks</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number">{{ stats.expired_links }}</span>
+            <span class="stat-label">Expired Links</span>
+        </div>
+    </div>
+
+    <!-- Link Creation Form -->
+    <div class="form-container">
+        <h2>Create New Dynamic Link</h2>
+        <form method="POST" action="{{ url_for('links.create_link_route') }}" class="create-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="url">Destination URL *</label>
+                    <input type="url" id="url" name="url" required placeholder="https://example.com">
+                </div>
+                <div class="form-group">
+                    <label for="display_name">Display Name</label>
+                    <input type="text" id="display_name" name="display_name" placeholder="My Project">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="custom_code">Custom Code</label>
+                    <input type="text" id="custom_code" name="custom_code" placeholder="my-project">
+                    <small>Will create: /{{ username }}/your-code</small>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password Protection</label>
+                    <input type="password" id="password" name="password" placeholder="6-15 characters (optional)">
+                    <small>Leave empty for public access</small>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="expiration">Link Expiration</label>
+                    <select id="expiration" name="expiration">
+                        <option value="never">Never expires</option>
+                        <option value="1">1 day</option>
+                        <option value="2">2 days</option>
+                        <option value="3">3 days</option>
+                        <option value="7">1 week</option>
+                        <option value="30">1 month</option>
+                        <option value="custom">Custom date</option>
+                    </select>
+                </div>
+                <div class="form-group" id="custom-date-group" style="display: none;">
+                    <label for="custom_date">Custom Expiration Date</label>
+                    <input type="date" id="custom_date" name="custom_date">
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary">🔗 Create Dynamic Link</button>
+        </form>
+    </div>
+
+    <!-- Search and Bulk Actions -->
+    <div class="actions-container">
+        <div class="search-section">
+            <form method="GET" class="search-form">
+                <input type="text" name="search" value="{{ current_search or '' }}" 
+                       placeholder="Search links by name, URL, or short code...">
+                <button type="submit" class="btn btn-secondary">🔍 Search</button>
+                {% if current_search %}
+                <a href="{{ url_for('links.dashboard') }}" class="btn btn-secondary">Clear</a>
+                {% endif %}
+            </form>
+        </div>
+
+        <div class="bulk-actions">
+            <div class="bulk-controls" id="bulk-controls" style="display: none;">
+                <span id="selected-count">0</span> links selected
+                <div class="bulk-buttons">
+                    <button onclick="bulkDelete()" class="btn btn-danger btn-small">🗑️ Delete Selected</button>
+                    <button onclick="bulkExportCSV()" class="btn btn-secondary btn-small">📊 Export CSV</button>
+                    <button onclick="bulkDownloadQR()" class="btn btn-secondary btn-small">📱 Download QR</button>
+                </div>
+            </div>
+
+            <div class="export-actions">
+                <a href="{{ url_for('links.export_csv') }}" class="btn btn-secondary">📊 Export All CSV</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Links List -->
+    {% if links %}
+        <div class="links-section">
+            <div class="links-header">
+                <h2>Your Dynamic Links</h2>
+                <label class="select-all">
+                    <input type="checkbox" id="select-all"> Select All
+                </label>
+            </div>
+
+            <div class="links-list">
+                {% for link in links %}
+                <div class="link-card {% if link.is_expired %}expired{% endif %}">
+                    <div class="link-select">
+                        <input type="checkbox" class="link-checkbox" value="{{ link.id }}">
+                    </div>
+
+                    <div class="link-content">
+                        <div class="link-header">
+                            <h3>{{ link.display_name }}</h3>
+                            <div class="link-status">
+                                {% if link.has_password %}
+                                    <span class="status-badge password">🔒 Protected</span>
+                                {% endif %}
+                                {% if link.is_expired %}
+                                    <span class="status-badge expired">⏰ Expired</span>
+                                {% else %}
+                                    <span class="status-badge active">✅ Active</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="link-meta">
+                            <div class="link-stats">
+                                <span>👆 {{ link.clicks }} clicks</span>
+                                <span>📅 {{ link.expiration_status }}</span>
+                                <span>🕒 Created {{ link.created_at[:10] }}</span>
+                            </div>
+                        </div>
+
+                        <div class="link-urls">
+                            <div class="url-row">
+                                <strong>Short URL:</strong> 
+                                <a href="/{{ link.short_code }}" target="_blank" class="short-link">
+                                    /{{ link.short_code }}
+                                </a>
+                                <button class="btn btn-tiny copy-btn" data-link="{{ request.url_root }}{{ link.short_code }}">📋 Copy</button>
+                            </div>
+                            <div class="url-row">
+                                <strong>Destination:</strong>
+                                <span class="destination-url" id="dest-{{ link.id }}">{{ link.original_url }}</span>
+                                <button onclick="editDestination('{{ link.id }}')" class="btn btn-tiny btn-edit" id="edit-btn-{{ link.id }}">✏️ Edit</button>
+                            </div>
+                        </div>
+
+                        <!-- Hidden edit form for inline editing -->
+                        <div class="edit-form" id="edit-form-{{ link.id }}" style="display: none;">
+                            <div class="form-group">
+                                <label>Update Destination URL:</label>
+                                <input type="url" id="new-url-{{ link.id }}" value="{{ link.original_url }}" class="form-control">
+                            </div>
+                            <div class="form-actions">
+                                <button onclick="saveDestination('{{ link.id }}')" class="btn btn-primary btn-small">💾 Save</button>
+                                <button onclick="cancelEdit('{{ link.id }}')" class="btn btn-secondary btn-small">❌ Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="link-qr">
+                        <div class="qr-small" onclick="expandQR('{{ link.id }}')">
+                            <img src="{{ link.qr_code_small }}" alt="QR Code" class="qr-thumbnail">
+                            <div class="qr-overlay">Click to expand</div>
+                        </div>
+
+                        <!-- Expanded QR modal -->
+                        <div class="qr-modal" id="qr-modal-{{ link.id }}" onclick="closeQR('{{ link.id }}')">
+                            <div class="qr-modal-content" onclick="event.stopPropagation()">
+                                <h4>QR Code: {{ link.display_name }}</h4>
+                                <div class="qr-large">
+                                    <canvas id="qr-large-{{ link.id }}"></canvas>
+                                </div>
+                                <div class="qr-actions">
+                                    <a href="{{ url_for('links.download_qr', link_id=link.id) }}" 
+                                       class="btn btn-primary">📥 Download PNG</a>
+                                    <button onclick="closeQR('{{ link.id }}')" class="btn btn-secondary">❌ Close</button>
+                                </div>
+                                <p class="qr-url">{{ request.url_root }}{{ link.short_code }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="link-actions">
+                        <a href="/{{ link.short_code }}" target="_blank" class="btn btn-secondary btn-small">🔗 Visit</a>
+                        <a href="{{ url_for('links.download_qr', link_id=link.id) }}" class="btn btn-secondary btn-small">📱 QR</a>
+                        <button onclick="deleteLink('{{ link.id }}', '{{ link.display_name }}')"
+                                class="btn btn-danger btn-small">🗑️ Delete</button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">🔗</div>
+            <h3>No Links Yet</h3>
+            <p>Create your first dynamic link using the form above!</p>
+            {% if current_search %}
+            <p>No links found matching "{{ current_search }}"</p>
+            <a href="{{ url_for('links.dashboard') }}" class="btn btn-secondary">Show All Links</a>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+
+<!-- Hidden forms for bulk actions -->
+<form id="bulk-delete-form" method="POST" action="{{ url_for('links.bulk_delete') }}" style="display: none;">
+    <div id="bulk-delete-inputs"></div>
+</form>
+
+<form id="bulk-export-form" method="POST" action="{{ url_for('links.bulk_export_csv') }}" style="display: none;">
+    <div id="bulk-export-inputs"></div>
+</form>
+
+<form id="bulk-qr-form" method="POST" action="{{ url_for('links.bulk_qr_download') }}" style="display: none;">
+    <div id="bulk-qr-inputs"></div>
+</form>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Expiration date toggle
+document.getElementById('expiration').addEventListener('change', function() {
+    const customGroup = document.getElementById('custom-date-group');
+    if (this.value === 'custom') {
+        customGroup.style.display = 'block';
+        document.getElementById('custom_date').required = true;
+    } else {
+        customGroup.style.display = 'none';
+        document.getElementById('custom_date').required = false;
+    }
+});
+
+// Bulk selection functionality
+const selectAllCheckbox = document.getElementById('select-all');
+const linkCheckboxes = document.querySelectorAll('.link-checkbox');
+const bulkControls = document.getElementById('bulk-controls');
+const selectedCount = document.getElementById('selected-count');
+
+function updateBulkControls() {
+    const checkedBoxes = document.querySelectorAll('.link-checkbox:checked');
+    const count = checkedBoxes.length;
+
+    selectedCount.textContent = count;
+    bulkControls.style.display = count > 0 ? 'flex' : 'none';
+
+    selectAllCheckbox.indeterminate = count > 0 && count < linkCheckboxes.length;
+    selectAllCheckbox.checked = count === linkCheckboxes.length && count > 0;
+}
+
+selectAllCheckbox.addEventListener('change', function() {
+    linkCheckboxes.forEach(checkbox => {
+        checkbox.checked = this.checked;
+    });
+    updateBulkControls();
+});
+
+linkCheckboxes.forEach(checkbox => {
+    checkbox.addEventListener('change', updateBulkControls);
+});
+
+// Dynamic link editing (inline editing)
+function editDestination(linkId) {
+    document.getElementById(`edit-form-${linkId}`).style.display = 'block';
+    document.getElementById(`edit-btn-${linkId}`).style.display = 'none';
+}
+
+function cancelEdit(linkId) {
+    document.getElementById(`edit-form-${linkId}`).style.display = 'none';
+    document.getElementById(`edit-btn-${linkId}`).style.display = 'inline-block';
+}
+
+async function saveDestination(linkId) {
+    const newUrl = document.getElementById(`new-url-${linkId}`).value;
+
+    if (!newUrl.trim()) {
+        alert('Please enter a valid URL');
+        return;
+    }
+
+    try {
+        const formData = new FormData();
+        formData.append('link_id', linkId);
+        formData.append('new_url', newUrl);
+
+        const response = await fetch('{{ url_for("links.update_url") }}', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            // Update the displayed URL
+            document.getElementById(`dest-${linkId}`).textContent = newUrl;
+            cancelEdit(linkId);
+
+            // Show success message
+            const flash = document.createElement('div');
+            flash.className = 'flash-message flash-success';
+            flash.textContent = 'Link updated successfully!';
+            document.querySelector('.flash-messages').appendChild(flash);
+
+            setTimeout(() => flash.remove(), 3000);
+        } else {
+            alert('Error: ' + result.message);
+        }
+    } catch (error) {
+        alert('Network error occurred');
+    }
+}
+
+// QR code expansion
+function expandQR(linkId) {
+    const modal = document.getElementById(`qr-modal-${linkId}`);
+    const canvas = document.getElementById(`qr-large-${linkId}`);
+
+    // Generate large QR code
+    const url = `{{ request.url_root }}{{ username }}/` + linkId; // This will need to be fixed
+    const qr = qrcode(0, 'M');
+    qr.addData(document.querySelector(`#qr-modal-${linkId} .qr-url`).textContent);
+    qr.make();
+
+    canvas.width = 300;
+    canvas.height = 300;
+    const ctx = canvas.getContext('2d');
+
+    // Draw QR code
+    const modules = qr.getModuleCount();
+    const tileW = canvas.width / modules;
+    const tileH = canvas.height / modules;
+
+    for (let row = 0; row < modules; row++) {
+        for (let col = 0; col < modules; col++) {
+            ctx.fillStyle = qr.isDark(row, col) ? '#1e3a8a' : '#000000';
+            ctx.fillRect(col * tileW, row * tileH, tileW, tileH);
+        }
+    }
+
+    modal.style.display = 'block';
+}
+
+function closeQR(linkId) {
+    document.getElementById(`qr-modal-${linkId}`).style.display = 'none';
+}
+
+// Bulk operations
+function bulkDelete() {
+    const checkedBoxes = document.querySelectorAll('.link-checkbox:checked');
+    if (checkedBoxes.length === 0) return;
+
+    if (confirm(`Delete ${checkedBoxes.length} selected links? This cannot be undone.`)) {
+        const form = document.getElementById('bulk-delete-form');
+        const inputs = document.getElementById('bulk-delete-inputs');
+        inputs.innerHTML = '';
+
+        checkedBoxes.forEach(checkbox => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'selected_links';
+            input.value = checkbox.value;
+            inputs.appendChild(input);
+        });
+
+        form.submit();
+    }
+}
+
+function bulkExportCSV() {
+    const checkedBoxes = document.querySelectorAll('.link-checkbox:checked');
+    if (checkedBoxes.length === 0) return;
+
+    const form = document.getElementById('bulk-export-form');
+    const inputs = document.getElementById('bulk-export-inputs');
+    inputs.innerHTML = '';
+
+    checkedBoxes.forEach(checkbox => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'selected_links';
+        input.value = checkbox.value;
+        inputs.appendChild(input);
+    });
+
+    form.submit();
+}
+
+function bulkDownloadQR() {
+    const checkedBoxes = document.querySelectorAll('.link-checkbox:checked');
+    if (checkedBoxes.length === 0) return;
+
+    const form = document.getElementById('bulk-qr-form');
+    const inputs = document.getElementById('bulk-qr-inputs');
+    inputs.innerHTML = '';
+
+    checkedBoxes.forEach(checkbox => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'selected_links';
+        input.value = checkbox.value;
+        inputs.appendChild(input);
+    });
+
+    form.submit();
+}
+
+// Utility functions
+function copyToClipboard(text) {
+    if (!text) return;
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => {
+            showCopySuccess();
+        }).catch(() => {
+            fallbackCopy(text);
+        });
+    } else {
+        fallbackCopy(text);
+    }
+}
+
+function fallbackCopy(text) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    showCopySuccess();
+}
+
+function showCopySuccess() {
+    const flash = document.createElement('div');
+    flash.className = 'flash-message flash-success';
+    flash.textContent = 'URL copied to clipboard!';
+    const container = document.querySelector('.flash-messages');
+    if (container) {
+        container.appendChild(flash);
+        setTimeout(() => flash.remove(), 2000);
+    }
+}
+
+// Event delegation for copy buttons
+document.addEventListener('click', function(e) {
+    if (e.target && e.target.classList.contains('copy-btn')) {
+        const link = e.target.getAttribute('data-link');
+        copyToClipboard(link);
+    }
+});
+
+function deleteLink(linkId, linkName) {
+    if (confirm(`Delete "${linkName}"? This cannot be undone.`)) {
+        window.location.href = `{{ url_for('links.dashboard') }}/../delete/${linkId}`;
+    }
+}
+</script>
+{% endblock %}

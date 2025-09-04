@@ -1,52 +1,134 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LinkForge - Forge Your Perfect Short Links</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-    <div class="container">
-        <div class="header">
+{% extends "base.html" %}
+
+{% block title %}LinkForge - URL Shortener & QR Generator{% endblock %}
+
+{% block content %}
+<div class="hero">
+    <h1>🔗 LinkForge</h1>
+    <p>Create short links and QR codes instantly. Professional URL management made simple.</p>
+</div>
+
+<div class="tool-selector">
+    <button class="tool-tab active" onclick="switchTool('shorten')">🔗 Shorten URL</button>
+    <button class="tool-tab" onclick="switchTool('qr')">📱 Generate QR Code</button>
+</div>
+
+<!-- URL Shortener Section -->
+<div id="shorten-section" class="tool-section">
+    <div class="form">
+        <h2>🔗 Shorten URL</h2>
+        <form method="POST" action="{{ url_for('shorten_url') }}">
+            <div class="form-group">
+                <label for="url" class="form-label">Enter URL to shorten:</label>
+                <input type="url" id="url" name="url" class="form-input" placeholder="https://example.com" required>
+            </div>
+            <div class="form-group">
+                <label for="name" class="form-label">Custom name (optional):</label>
+                <input type="text" id="name" name="name" class="form-input" placeholder="My awesome link">
+            </div>
+            <button type="submit" class="btn btn-primary btn-large">🔗 Shorten URL</button>
+        </form>
+    </div>
+
+    {% if session.last_shortened %}
+    <div class="card fade-in">
+        <div class="card-header">
+            <h3 class="card-title">✅ URL Shortened Successfully!</h3>
+        </div>
+        <div class="card-body">
+            <p><strong>Original URL:</strong><br>
+            <span class="url-original">{{ session.last_shortened.original_url }}</span></p>
+
+            <p><strong>Short URL:</strong><br>
+            <a href="{{ session.last_shortened.short_url }}" target="_blank" class="url-short">{{ session.last_shortened.short_url }}</a></p>
+
+            {% if session.last_shortened.qr_code %}
+            <div class="qr-container">
+                <img src="{{ session.last_shortened.qr_code }}" alt="QR Code" class="qr-code">
+            </div>
+            {% endif %}
+        </div>
+        <div class="card-footer">
+            <button onclick="copyToClipboard('{{ session.last_shortened.short_url }}')" class="btn btn-secondary">📋 Copy Link</button>
+            {% if session.last_shortened.qr_code %}
+            <button onclick="downloadQR('{{ session.last_shortened.qr_code }}')" class="btn btn-secondary">⬇️ Download QR</button>
+            {% endif %}
+            {% if not session.user_id %}
+            <a href="{{ url_for('register') }}" class="btn btn-primary">💾 Sign up to save links</a>
+            {% endif %}
+        </div>
+    </div>
+    {{ session.pop('last_shortened', None) or '' }}
+    {% endif %}
+</div>
+
+<!-- QR Code Generator Section -->
+<div id="qr-section" class="tool-section hidden">
+    <div class="form">
+        <h2>📱 Generate QR Code</h2>
+        <form method="POST" action="{{ url_for('generate_qr') }}">
+            <div class="form-group">
+                <label for="qr-url" class="form-label">Enter URL for QR code:</label>
+                <input type="url" id="qr-url" name="url" class="form-input" placeholder="https://example.com" required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-large">📱 Generate QR Code</button>
+        </form>
+    </div>
+
+    {% if session.last_qr %}
+    <div class="card fade-in">
+        <div class="card-header">
+            <h3 class="card-title">✅ QR Code Generated Successfully!</h3>
+        </div>
+        <div class="card-body">
+            <p><strong>URL:</strong><br>
+            <span class="url-original">{{ session.last_qr.url }}</span></p>
+
+            <div class="qr-container">
+                <img src="{{ session.last_qr.qr_code }}" alt="QR Code" class="qr-code">
+            </div>
+        </div>
+        <div class="card-footer">
+            <button onclick="copyToClipboard('{{ session.last_qr.url }}')" class="btn btn-secondary">📋 Copy URL</button>
+            <button onclick="downloadQR('{{ session.last_qr.qr_code }}')" class="btn btn-secondary">⬇️ Download QR</button>
+            {% if not session.user_id %}
+            <a href="{{ url_for('register') }}" class="btn btn-primary">💾 Sign up to save QR codes</a>
+            {% endif %}
+        </div>
+    </div>
+    {{ session.pop('last_qr', None) or '' }}
+    {% endif %}
+</div>
+
+{% if not session.user_id %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">🚀 Why Create an Account?</h3>
+    </div>
+    <div class="card-body">
+        <div class="grid grid-2">
             <div>
-                <h1>� LinkForge</h1>
-                <p class="subtitle">Forge powerful short links with style</p>
+                <h4>📊 Track Performance</h4>
+                <p>Monitor clicks and engagement on all your links</p>
             </div>
-        </div>
-        
-        <div class="user-section" id="user-section" style="display: none;">
-            <div class="welcome-text" id="user-info"></div>
-        </div>
-        
-        <div class="content">
-            <div id="auth-required" style="display: none;">
-                <div class="auth-card">
-                    <h2>Welcome to LinkForge! 👋</h2>
-                    <p>Create an account to start forging powerful short URLs with beautiful QR codes.</p>
-                    <div class="auth-links">
-                        <a href="/login">🔑 Login</a>
-                        <a href="/register">✨ Sign Up</a>
-                    </div>
-                </div>
+            <div>
+                <h4>🔧 Manage Links</h4>
+                <p>Edit, organize, and delete your shortened URLs</p>
             </div>
-            
-            <div id="main-app" style="display: none;">
-                <div class="form-container">
-                    <form id="shorten-form">
-                        <div class="form-row">
-                            <input type="url" id="long-url" placeholder="🔨 Paste your URL to forge a short link..." required>
-                            <button type="submit">⚡ Forge Link</button>
-                        </div>
-                    </form>
-                </div>
-                
-                <div id="result"></div>
-                
-                <div id="history" class="history-section"></div>
+            <div>
+                <h4>⭐ Favorites</h4>
+                <p>Mark important links as favorites for quick access</p>
+            </div>
+            <div>
+                <h4>📱 QR Codes</h4>
+                <p>Generate and download QR codes for all your links</p>
             </div>
         </div>
     </div>
-    <script src="/static/app.js"></script>
-</body>
-</html>
+    <div class="card-footer">
+        <a href="{{ url_for('register') }}" class="btn btn-primary">🆓 Sign Up Free</a>
+        <a href="{{ url_for('login') }}" class="btn btn-secondary">🔑 Login</a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Link Not Found - LinkForge{% endblock %}
+
+{% block content %}
+<div class="container error-container">
+    <div class="error-content">
+        <div class="error-icon">🔍</div>
+        <h1>Link Not Found</h1>
+        <p>The short link you're looking for doesn't exist, has been removed, or has expired.</p>
+
+        <div class="error-actions">
+            <a href="{{ url_for('main.landing') }}" class="btn btn-primary">🏠 Go Home</a>
+            {% if not session.user_id %}
+                <a href="{{ url_for('auth.register') }}" class="btn btn-secondary">🚀 Create Account</a>
+            {% else %}
+                <a href="{{ url_for('links.dashboard') }}" class="btn btn-secondary">📊 Dashboard</a>
+            {% endif %}
+        </div>
+
+        <div class="error-help">
+            <h3>What can you do?</h3>
+            <ul>
+                <li>Check if the link is spelled correctly</li>
+                <li>Contact the person who shared the link</li>
+                <li>Create your own LinkForge account</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<style>
+.error-container {
+    min-height: 60vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.error-content {
+    text-align: center;
+    max-width: 600px;
+}
+
+.error-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    color: var(--accent);
+}
+
+.error-actions {
+    margin: 2rem 0;
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.error-help {
+    background: var(--bg-secondary);
+    padding: 2rem;
+    border-radius: 8px;
+    margin-top: 2rem;
+}
+
+.error-help h3 {
+    color: var(--accent);
+    margin-bottom: 1rem;
+}
+
+.error-help ul {
+    text-align: left;
+    color: var(--text-secondary);
+}
+
+.error-help li {
+    margin: 0.5rem 0;
+}
+
+@media (max-width: 768px) {
+    .error-actions {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .error-actions .btn {
+        width: 100%;
+        max-width: 300px;
+    }
+}
+</style>
+{% endblock %}

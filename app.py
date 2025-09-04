@@ -1,189 +1,95 @@
-from flask import Flask, request, redirect, jsonify, render_template, session
-import sqlite3
-import string
-import random
-import qrcode
-import io
-import base64
-from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
+"""
+LinkForge Complete - Main Application
+====================================
 
-app = Flask(__name__)
-app.secret_key = 'your-secret-key-change-this'
+Modular Flask URL shortener with all features implemented:
+- Dynamic link management (core feature)
+- Link expiration with enforcement
+- Password protection with enforcement
+- Bulk operations and QR codes
+- Complete analytics and export
 
-# Database setup
-def init_db():
-    conn = sqlite3.connect('urls.db')
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS users
-                 (id INTEGER PRIMARY KEY, username TEXT UNIQUE, password_hash TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS urls
-                 (id INTEGER PRIMARY KEY, user_id INTEGER, long_url TEXT, short_code TEXT UNIQUE, 
-                  created_at TEXT, FOREIGN KEY(user_id) REFERENCES users(id))''')
-    conn.commit()
-    conn.close()
+Entry point for the application.
+"""
 
-# Helper to generate a short code
-def generate_code(length=6):
-    chars = string.ascii_letters + string.digits
-    return ''.join(random.choices(chars, k=length))
+from flask import Flask, session, request, jsonify
+from config import get_config
+import os
 
-# Generate QR code
-def generate_qr_code(url):
-    qr = qrcode.QRCode(version=1, box_size=10, border=5)
-    qr.add_data(url)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
-    
-    # Convert to base64 string
-    buffered = io.BytesIO()
-    img.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue()).decode()
-    return f"data:image/png;base64,{img_str}"
+def create_app():
+    """Create and configure Flask application."""
+    app = Flask(__name__)
 
-@app.route('/')
-def index():
-    return render_template('index.html')
+    # Load configuration
+    config = get_config()
+    app.config.from_object(config)
 
-@app.route('/login')
-def login_page():
-    return render_template('login.html')
 
-@app.route('/register')
-def register_page():
-    return render_template('register.html')
+    # --- Security Headers and CORS Setup ---
+    # These headers help protect your app from common web attacks:
+    # - X-Frame-Options: Prevents clickjacking by disallowing your site in iframes
+    # - X-Content-Type-Options: Prevents MIME type sniffing
+    # - Content-Security-Policy: Restricts sources for scripts, styles, etc.
+    # CORS (Cross-Origin Resource Sharing) controls which domains can access your API/resources
+    # Flask-CORS is used here to allow only same-origin requests (default)
+    from flask_cors import CORS
+    # Set allowed CORS origin from environment variable for flexibility
+    # Example in .env: CORS_ALLOWED_ORIGIN=https://yourdomain.com
+    cors_origin = os.environ.get('CORS_ALLOWED_ORIGIN', 'http://localhost:5000')
+    CORS(app, resources={r"/*": {"origins": cors_origin}})  # Restricts CORS to env value
 
-@app.route('/api/register', methods=['POST'])
-def register():
-    data = request.get_json()
-    username = data.get('username')
-    password = data.get('password')
-    
-    if not username or not password:
-        return jsonify({'error': 'Username and password required'}), 400
-    
-    conn = sqlite3.connect('urls.db')
-    c = conn.cursor()
-    
-    try:
-        password_hash = generate_password_hash(password)
-        c.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)', 
-                  (username, password_hash))
-        conn.commit()
-        session['user_id'] = c.lastrowid
-        session['username'] = username
-        return jsonify({'success': True})
-    except sqlite3.IntegrityError:
-        return jsonify({'error': 'Username already exists'}), 400
-    finally:
-        conn.close()
+    @app.after_request
+    def set_security_headers(response):
+        # Prevents your site from being loaded in an iframe (clickjacking)
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        # Prevents browsers from MIME type sniffing
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        # Basic Content Security Policy (CSP) to restrict sources
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
+        return response
 
-@app.route('/api/login', methods=['POST'])
-def login():
-    data = request.get_json()
-    username = data.get('username')
-    password = data.get('password')
-    
-    conn = sqlite3.connect('urls.db')
-    c = conn.cursor()
-    c.execute('SELECT id, password_hash FROM users WHERE username = ?', (username,))
-    user = c.fetchone()
-    conn.close()
-    
-    if user and check_password_hash(user[1], password):
-        session['user_id'] = user[0]
-        session['username'] = username
-        return jsonify({'success': True})
-    else:
-        return jsonify({'error': 'Invalid credentials'}), 401
+    # Register blueprints
+    from blueprints.auth import auth_bp
+    from blueprints.links import links_bp  
+    from blueprints.main import main_bp
 
-@app.route('/api/logout', methods=['POST'])
-def logout():
-    session.clear()
-    return jsonify({'success': True})
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(links_bp)
+    app.register_blueprint(main_bp)
 
-@app.route('/shorten', methods=['POST'])
-def shorten_url():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Please login first'}), 401
-    
-    data = request.get_json()
-    long_url = data.get('url')
-    if not long_url:
-        return jsonify({'error': 'No URL provided'}), 400
-    
-    # Add protocol if missing
-    if not long_url.startswith(('http://', 'https://')):
-        long_url = 'https://' + long_url
-    
-    conn = sqlite3.connect('urls.db')
-    c = conn.cursor()
-    
-    # Generate unique short code
-    code = generate_code()
-    while True:
-        c.execute('SELECT id FROM urls WHERE short_code = ?', (code,))
-        if not c.fetchone():
-            break
-        code = generate_code()
-    
-    # Save to database
-    c.execute('INSERT INTO urls (user_id, long_url, short_code, created_at) VALUES (?, ?, ?, ?)',
-              (session['user_id'], long_url, code, datetime.now().isoformat()))
-    conn.commit()
-    conn.close()
-    
-    short_url = request.host_url + code
-    qr_code = generate_qr_code(short_url)
-    
-    return jsonify({
-        'short_url': short_url,
-        'qr_code': qr_code
-    })
+    # Initialize database
+    from models import DatabaseManager
+    with app.app_context():
+        db = DatabaseManager()
 
-@app.route('/history')
-def get_history():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Please login first'}), 401
-    
-    conn = sqlite3.connect('urls.db')
-    c = conn.cursor()
-    c.execute('SELECT long_url, short_code, created_at FROM urls WHERE user_id = ? ORDER BY created_at DESC',
-              (session['user_id'],))
-    urls = c.fetchall()
-    conn.close()
-    
-    history = []
-    for url in urls:
-        short_url = request.host_url + url[1]
-        qr_code = generate_qr_code(short_url)
-        history.append({
-            'long_url': url[0],
-            'short_url': short_url,
-            'qr_code': qr_code,
-            'created_at': url[2]
-        })
-    
-    return jsonify({'history': history})
+    # Template context processor
+    @app.context_processor
+    def inject_template_vars():
+        """Add common variables to all templates."""
+        return {
+            'app_name': 'LinkForge',
+            'current_year': 2025,
+            'is_authenticated': 'user_id' in session
+        }
 
-@app.route('/api/user')
-def get_user():
-    if 'user_id' in session:
-        return jsonify({'username': session['username']})
-    return jsonify({'username': None})
+    # Error handlers
+    @app.errorhandler(404)
+    def not_found(error):
+        return app.send_static_file('404.html') if os.path.exists('static/404.html') else ('Not Found', 404)
 
-@app.route('/<code>')
-def redirect_url(code):
-    conn = sqlite3.connect('urls.db')
-    c = conn.cursor()
-    c.execute('SELECT long_url FROM urls WHERE short_code = ?', (code,))
-    result = c.fetchone()
-    conn.close()
-    
-    if result:
-        return redirect(result[0])
-    return jsonify({'error': 'URL not found'}), 404
+    @app.errorhandler(500)
+    def internal_error(error):
+        return 'Internal Server Error', 500
+
+    return app
+
+# Create app instance
+app = create_app()
 
 if __name__ == '__main__':
-    init_db()
-    app.run(debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    print("🔗 LinkForge Complete starting...")
+    print(f"📡 Server: http://localhost:{port}")
+    print("✅ All features implemented and ready!")
+
+    app.run(debug=True, host='0.0.0.0', port=port)

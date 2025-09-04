@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}QR Code - {{ link.display_name }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="qr-container">
+        <h1>QR Code: {{ link.display_name }}</h1>
+
+        <div class="qr-display">
+            <img src="{{ qr_code }}" alt="QR Code" class="qr-large">
+        </div>
+
+        <div class="qr-info">
+            <p><strong>Short URL:</strong> {{ short_url }}</p>
+            <p><strong>Destination:</strong> {{ link.original_url }}</p>
+            <p><strong>Clicks:</strong> {{ link.clicks }}</p>
+        </div>
+
+        <div class="qr-actions">
+            <a href="{{ url_for('links.dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+            <button onclick="window.print()" class="btn btn-primary">Print QR Code</button>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+
+{% block title %}LinkForge - Dynamic URL Shortener with Personal Namespaces{% endblock %}
+
+{% block content %}
+<div class="hero">
+    <div class="container">
+        <h1>🔗 LinkForge</h1>
+        <p class="hero-subtitle">
+            Create dynamic short links with your personal namespace. 
+            Change destinations anytime without breaking links.
+        </p>
+        <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-large">
+            🚀 Get Started Free
+        </a>
+    </div>
+</div>
+
+<div class="container">
+    <div class="features-section">
+        <h2>Why LinkForge is Different</h2>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🎯</div>
+                <h3>Personal URL Namespaces</h3>
+                <p>Get your own URL space: <code>/yourusername/project</code></p>
+                <p>No conflicts with other users. Your links, your namespace.</p>
+                <div class="feature-example">
+                    <strong>Example:</strong><br>
+                    <code>/alice/portfolio</code> ✅<br>
+                    <code>/bob/portfolio</code> ✅<br>
+                    <span class="text-secondary">Both work independently!</span>
+                </div>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🔄</div>
+                <h3>Dynamic Links</h3>
+                <p>Change where your links redirect anytime without breaking them.</p>
+                <div class="feature-example">
+                    <strong>Keep the same URL:</strong><br>
+                    <code>/you/resume</code><br>
+                    <strong>Update destination:</strong><br>
+                    v1.0 → Google Drive<br>
+                    v2.0 → Personal website<br>
+                    <span class="text-secondary">Links never break!</span>
+                </div>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">📱</div>
+                <h3>Built-in QR Codes</h3>
+                <p>Automatic QR code generation for every link with dark theme design.</p>
+                <ul>
+                    <li>✅ Visible by default in dashboard</li>
+                    <li>✅ One-click download as PNG</li>
+                    <li>✅ Bulk download multiple QR codes</li>
+                    <li>✅ Optimized for scanning</li>
+                </ul>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <h3>Smart Analytics</h3>
+                <p>Track your link performance with detailed analytics.</p>
+                <ul>
+                    <li>✅ Click count and timestamps</li>
+                    <li>✅ Referrer tracking (where clicks come from)</li>
+                    <li>✅ Export data as CSV</li>
+                    <li>✅ Privacy-focused (no personal data)</li>
+                </ul>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🔒</div>
+                <h3>Security Features</h3>
+                <p>Protect your links with passwords and expiration dates.</p>
+                <ul>
+                    <li>✅ Password protection for sensitive links</li>
+                    <li>✅ Link expiration (1 day to 1 month)</li>
+                    <li>✅ Secure password hashing</li>
+                    <li>✅ Access control</li>
+                </ul>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <h3>Power User Features</h3>
+                <p>Bulk operations and advanced management tools.</p>
+                <ul>
+                    <li>✅ Bulk delete multiple links</li>
+                    <li>✅ Bulk export selected links</li>
+                    <li>✅ Bulk download QR codes</li>
+                    <li>✅ Real-time search and filtering</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="use-cases-section">
+        <h2>Perfect For</h2>
+        <div class="use-cases-grid">
+            <div class="use-case">
+                <h4>🎓 Students & Professionals</h4>
+                <p>Share your portfolio, resume, or projects with memorable URLs that you can update anytime.</p>
+            </div>
+            <div class="use-case">
+                <h4>🚀 Startups & Businesses</h4>
+                <p>Create branded short links for campaigns, social media, and marketing materials.</p>
+            </div>
+            <div class="use-case">
+                <h4>🎨 Content Creators</h4>
+                <p>Share your latest content with consistent URLs that redirect to your newest work.</p>
+            </div>
+            <div class="use-case">
+                <h4>📋 Event Organizers</h4>
+                <p>Create easy-to-remember links for event registration, schedules, and updates.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="how-it-works">
+        <h2>How It Works</h2>
+        <div class="steps">
+            <div class="step">
+                <div class="step-number">1</div>
+                <h4>Create Account</h4>
+                <p>Sign up to get your personal namespace</p>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <h4>Create Links</h4>
+                <p>Generate <code>/yourusername/anything</code> URLs</p>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <h4>Share & Track</h4>
+                <p>Share your links and watch the analytics</p>
+            </div>
+            <div class="step">
+                <div class="step-number">4</div>
+                <h4>Update Anytime</h4>
+                <p>Change where links redirect without breaking them</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="cta-section">
+        <div class="cta-card">
+            <h2>Ready to Get Started?</h2>
+            <p>Join LinkForge and create your first dynamic short link in seconds.</p>
+            <div class="cta-actions">
+                <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-large">
+                    🚀 Create Free Account
+                </a>
+                <a href="{{ url_for('auth.login') }}" class="btn btn-secondary btn-large">
+                    🔑 Login
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.hero {
+    background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+    padding: 4rem 0;
+    text-align: center;
+    border-bottom: 2px solid var(--accent);
+}
+
+.features-section, .use-cases-section, .how-it-works {
+    margin: 4rem 0;
+}
+
+.features-section h2, .use-cases-section h2, .how-it-works h2 {
+    text-align: center;
+    color: var(--accent);
+    margin-bottom: 2rem;
+    font-size: 2rem;
+}
+
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 2rem;
+    margin: 2rem 0;
+}
+
+.feature-card {
+    background: var(--bg-secondary);
+    padding: 2rem;
+    border-radius: 12px;
+    border: 1px solid #333;
+}
+
+.feature-icon {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+}
+
+.feature-example {
+    background: rgba(30, 58, 138, 0.1);
+    padding: 1rem;
+    border-radius: 6px;
+    margin-top: 1rem;
+    font-size: 0.9rem;
+}
+
+.feature-example code {
+    background: rgba(30, 58, 138, 0.3);
+    padding: 0.2rem 0.5rem;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+}
+
+.use-cases-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+}
+
+.use-case {
+    background: var(--bg-secondary);
+    padding: 1.5rem;
+    border-radius: 8px;
+    border-left: 4px solid var(--accent);
+}
+
+.steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 2rem;
+    margin: 2rem 0;
+}
+
+.step {
+    text-align: center;
+    padding: 1.5rem;
+}
+
+.step-number {
+    width: 60px;
+    height: 60px;
+    background: var(--accent);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin: 0 auto 1rem;
+}
+
+.cta-section {
+    margin: 4rem 0;
+    padding: 2rem 0;
+}
+
+.cta-card {
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, #1a1a1a 100%);
+    padding: 3rem;
+    border-radius: 12px;
+    text-align: center;
+    border: 2px solid var(--accent);
+}
+
+.cta-actions {
+    margin-top: 2rem;
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.text-secondary {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+    .features-grid {
+        grid-template-columns: 1fr;
+    }
+    .cta-actions {
+        flex-direction: column;
+        align-items: center;
+    }
+    .cta-actions .btn {
+        width: 100%;
+        max-width: 300px;
+    }
+}
+</style>
+{% endblock %}
