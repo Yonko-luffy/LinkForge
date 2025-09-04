@@ -2,3 +2,4 @@ Flask==3.0.0
 Werkzeug==3.0.1
 qrcode[pil]==7.4.2
 Pillow>=9.5.0,<10.2
+Flask-Cors==3.0.10
