@@ -41,4 +41,3 @@ dist/
 
 # Environment and runtime files
 .env
-runtime.txt
