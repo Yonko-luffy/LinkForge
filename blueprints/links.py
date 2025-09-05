@@ -64,15 +64,17 @@ def validate_url(url):
 
     return False, ""
 
-def generate_qr_code(url, size='small'):
+def generate_qr_code(url, size='small', as_attachment=True, filename=None):
     """
     Generate QR code for URL.
-
+    
     Args:
         url: URL to encode
-        size: 'small' for dashboard, 'large' for download
+        size: 'small' for inline display, 'large' for download
+        as_attachment: True for download, False for inline display
+        filename: Custom filename for download
     """
-    box_size = 4 if size == 'small' else 10
+    box_size = 5 if size == 'small' else 10
     border = 2 if size == 'small' else 4
 
     qr = qrcode.QRCode(
@@ -85,15 +87,20 @@ def generate_qr_code(url, size='small'):
     qr.add_data(url)
     qr.make(fit=True)
 
-    # Create image with dark theme colors
-    img = qr.make_image(fill_color="#1e3a8a", back_color="#000000")
-
-    buf = io.BytesIO()
-    img.save(buf, format='PNG')
-    buf.seek(0)
-    img_base64 = base64.b64encode(buf.read()).decode('utf-8')
-
-    return f'data:image/png;base64,{img_base64}'
+    # Create traditional black QR pattern on white background
+    img = qr.make_image(fill_color="#000000", back_color="#ffffff")
+    
+    # Save to buffer
+    img_buffer = io.BytesIO()
+    img.save(img_buffer, format='PNG')
+    img_buffer.seek(0)
+    
+    return send_file(
+        img_buffer,
+        mimetype='image/png',
+        as_attachment=as_attachment,
+        download_name=filename
+    )
 
 @links_bp.route('/dashboard')
 def dashboard():
@@ -115,7 +122,7 @@ def dashboard():
     for link in links:
         # Generate small QR code for display
         short_url = f"{request.url_root.rstrip('/')}/{link['short_code']}"
-        link['qr_code_small'] = generate_qr_code(short_url, 'small')
+        link['qr_code_small'] = generate_qr_code(short_url, 'small', as_attachment=False)
 
         # Check expiration status
         link['is_expired'] = is_link_expired(link)
@@ -419,15 +426,17 @@ def bulk_export_csv():
     # Get selected links
     db = DatabaseManager()
     conn = db.get_connection()
+    cursor = conn.cursor()
 
     try:
-        placeholders = ','.join('?' for _ in selected_links)
+        placeholders = ','.join('%s' for _ in selected_links)
         params = selected_links + [user_id]
 
-        links = conn.execute(f"""
+        cursor.execute(f"""
             SELECT * FROM links 
-            WHERE id IN ({placeholders}) AND user_id = ?
-        """, params).fetchall()
+            WHERE id IN ({placeholders}) AND user_id = %s
+        """, params)
+        links = cursor.fetchall()
 
         # Create CSV
         output = io.StringIO()
@@ -458,7 +467,12 @@ def bulk_export_csv():
             headers={'Content-Disposition': f'attachment; filename=linkforge_selected_{username}.csv'}
         )
 
+    except Exception as e:
+        print(f"Error in bulk_export_csv: {e}")
+        flash('Error exporting CSV.', 'error')
+        return redirect(url_for('links.dashboard'))
     finally:
+        cursor.close()
         conn.close()
 
 @links_bp.route('/download_qr/<int:link_id>')
@@ -473,43 +487,69 @@ def download_qr(link_id):
     # Get link
     db = DatabaseManager()
     conn = db.get_connection()
+    cursor = conn.cursor()
 
     try:
-        link = conn.execute(
-            'SELECT * FROM links WHERE id = ? AND user_id = ?',
+        cursor.execute(
+            'SELECT * FROM links WHERE id = %s AND user_id = %s',
             (link_id, user_id)
-        ).fetchone()
+        )
+        link = cursor.fetchone()
 
         if not link:
             flash('Link not found.', 'error')
             return redirect(url_for('links.dashboard'))
 
-        # Generate high-quality QR code
+        # Generate high-quality QR code using consolidated function
         short_url = f"{request.url_root.rstrip('/')}/{link['short_code']}"
-
-        qr = qrcode.QRCode(version=1, box_size=10, border=4)
-        qr.add_data(short_url)
-        qr.make(fit=True)
-
-        img = qr.make_image(fill_color="#1e3a8a", back_color="#000000")
-
-        # Save to buffer
-        img_buffer = io.BytesIO()
-        img.save(img_buffer, format='PNG')
-        img_buffer.seek(0)
-
+        
         # Clean filename
         safe_name = re.sub(r'[<>:"/\|?*]', '_', link['display_name'])
         filename = f"{safe_name}_qr_code.png"
 
-        return send_file(
-            img_buffer,
-            mimetype='image/png',
-            as_attachment=True,
-            download_name=filename
-        )
+        return generate_qr_code(short_url, size='large', as_attachment=True, filename=filename)
 
+    except Exception as e:
+        print(f"Error in download_qr: {e}")
+        flash('Error generating QR code download.', 'error')
+        return redirect(url_for('links.dashboard'))
     finally:
+        cursor.close()
+        conn.close()
+
+@links_bp.route('/qr_image/<int:link_id>')
+def qr_image(link_id):
+    """Serve QR code as inline image."""
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+
+    user_id = session['user_id']
+
+    # Get link
+    db = DatabaseManager()
+    conn = db.get_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(
+            'SELECT * FROM links WHERE id = %s AND user_id = %s',
+            (link_id, user_id)
+        )
+        link = cursor.fetchone()
+
+        if not link:
+            return "Link not found", 404
+
+        # Generate QR code using consolidated function
+        short_url = f"{request.url_root.rstrip('/')}/{link['short_code']}"
+        
+        return generate_qr_code(short_url, size='small', as_attachment=False)
+
+    except Exception as e:
+        print(f"Error in qr_image: {e}")
+        return "Error generating QR image", 500
+    finally:
+        cursor.close()
         conn.close()
 
 @links_bp.route('/bulk_qr_download', methods=['POST'])  
@@ -530,15 +570,17 @@ def bulk_qr_download():
     # Get selected links
     db = DatabaseManager()
     conn = db.get_connection()
+    cursor = conn.cursor()
 
     try:
-        placeholders = ','.join('?' for _ in selected_links)
+        placeholders = ','.join('%s' for _ in selected_links)
         params = selected_links + [user_id]
 
-        links = conn.execute(f"""
+        cursor.execute(f"""
             SELECT * FROM links 
-            WHERE id IN ({placeholders}) AND user_id = ?
-        """, params).fetchall()
+            WHERE id IN ({placeholders}) AND user_id = %s
+        """, params)
+        links = cursor.fetchall()
 
         if not links:
             flash('No valid links found.', 'error')
@@ -556,7 +598,8 @@ def bulk_qr_download():
                 qr.add_data(short_url)
                 qr.make(fit=True)
 
-                img = qr.make_image(fill_color="#1e3a8a", back_color="#000000")
+                # Create traditional black QR pattern on white background
+                img = qr.make_image(fill_color="#000000", back_color="#ffffff")
 
                 # Save to buffer
                 img_buffer = io.BytesIO()
@@ -578,5 +621,10 @@ def bulk_qr_download():
             download_name=f'linkforge_qr_codes_{username}.zip'
         )
 
+    except Exception as e:
+        print(f"Error in bulk_qr_download: {e}")
+        flash('Error generating QR codes ZIP.', 'error')
+        return redirect(url_for('links.dashboard'))
     finally:
+        cursor.close()
         conn.close()

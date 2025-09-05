@@ -15,6 +15,8 @@ Entry point for the application.
 from flask import Flask, session, request, jsonify
 from config import get_config
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 def create_app():
     """Create and configure Flask application."""

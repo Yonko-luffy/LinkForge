@@ -36,23 +36,24 @@
             <div class="form-row">
                 <div class="form-group">
                     <label for="url">Destination URL *</label>
-                    <input type="url" id="url" name="url" required placeholder="https://example.com">
+                    <input type="text" id="url" name="url" required placeholder="example.com or https://example.com" autocomplete="off">
+                    <small class="form-help">You can enter URLs with or without http:// - we'll add https:// automatically if needed</small>
                 </div>
                 <div class="form-group">
                     <label for="display_name">Display Name</label>
-                    <input type="text" id="display_name" name="display_name" placeholder="My Project">
+                    <input type="text" id="display_name" name="display_name" placeholder="My Project" autocomplete="off">
                 </div>
             </div>
 
             <div class="form-row">
                 <div class="form-group">
                     <label for="custom_code">Custom Code</label>
-                    <input type="text" id="custom_code" name="custom_code" placeholder="my-project">
+                    <input type="text" id="custom_code" name="custom_code" placeholder="my-project" autocomplete="off">
                     <small>Will create: /{{ username }}/your-code</small>
                 </div>
                 <div class="form-group">
                     <label for="password">Password Protection</label>
-                    <input type="password" id="password" name="password" placeholder="6-15 characters (optional)">
+                    <input type="password" id="password" name="password" placeholder="6-15 characters (optional)" autocomplete="new-password">
                     <small>Leave empty for public access</small>
                 </div>
             </div>
@@ -145,7 +146,7 @@
                             <div class="link-stats">
                                 <span>👆 {{ link.clicks }} clicks</span>
                                 <span>📅 {{ link.expiration_status }}</span>
-                                <span>🕒 Created {{ link.created_at[:10] }}</span>
+                                <span>🕒 Created {% if link.created_at.__class__.__name__ == 'datetime' %}{{ link.created_at.strftime('%Y-%m-%d') }}{% else %}{{ link.created_at[:10] }}{% endif %}</span>
                             </div>
                         </div>
 
@@ -178,31 +179,30 @@
                     </div>
 
                     <div class="link-qr">
-                        <div class="qr-small" onclick="expandQR('{{ link.id }}')">
-                            <img src="{{ link.qr_code_small }}" alt="QR Code" class="qr-thumbnail">
-                            <div class="qr-overlay">Click to expand</div>
-                        </div>
-
-                        <!-- Expanded QR modal -->
-                        <div class="qr-modal" id="qr-modal-{{ link.id }}" onclick="closeQR('{{ link.id }}')">
-                            <div class="qr-modal-content" onclick="event.stopPropagation()">
-                                <h4>QR Code: {{ link.display_name }}</h4>
-                                <div class="qr-large">
-                                    <canvas id="qr-large-{{ link.id }}"></canvas>
-                                </div>
-                                <div class="qr-actions">
-                                    <a href="{{ url_for('links.download_qr', link_id=link.id) }}" 
-                                       class="btn btn-primary">📥 Download PNG</a>
-                                    <button onclick="closeQR('{{ link.id }}')" class="btn btn-secondary">❌ Close</button>
-                                </div>
-                                <p class="qr-url">{{ request.url_root }}{{ link.short_code }}</p>
-                            </div>
+                        <!-- Static QR Code - Always Visible -->
+                        <div class="qr-static">
+                            <!-- JavaScript Canvas QR (Primary) -->
+                            <canvas id="qr-static-{{ link.id }}" width="120" height="120" class="qr-canvas" 
+                                    data-url="{{ request.url_root }}{{ link.short_code }}" 
+                                    style="display: block; border: 1px solid #ddd;"></canvas>
+                            
+                            <!-- Server-Generated QR Fallback (Hidden by default) -->
+                            <img id="qr-image-{{ link.id }}" 
+                                 src="{{ url_for('links.qr_image', link_id=link.id) }}" 
+                                 alt="QR Code" 
+                                 width="120" height="120"
+                                 style="display: none; border: 1px solid #ddd;"
+                                 onerror="this.style.display='none'; document.getElementById('qr-static-{{ link.id }}').style.display='block';">
+                            
+                            <a href="{{ url_for('links.download_qr', link_id=link.id) }}" 
+                               class="btn btn-primary btn-small qr-download" download>
+                                📥 Download QR
+                            </a>
                         </div>
                     </div>
 
                     <div class="link-actions">
                         <a href="/{{ link.short_code }}" target="_blank" class="btn btn-secondary btn-small">🔗 Visit</a>
-                        <a href="{{ url_for('links.download_qr', link_id=link.id) }}" class="btn btn-secondary btn-small">📱 QR</a>
                         <button onclick="deleteLink('{{ link.id }}', '{{ link.display_name }}')"
                                 class="btn btn-danger btn-small">🗑️ Delete</button>
                     </div>
@@ -236,52 +236,149 @@
     <div id="bulk-qr-inputs"></div>
 </form>
 
-<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<script src="{{ url_for('static', filename='main.js') }}"></script>
+<script>
+// Initialize functions on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize QR generation
+    initializeQRGeneration();
+    
+    // Initialize form validation
+    initializeURLValidation();
+    
+    // Initialize expiration date toggle
+    initializeExpirationToggle();
+    
+    // Initialize bulk controls
+    initializeBulkControls();
+});
+
+function initializeQRGeneration() {
+    let attempts = 0;
+    const maxAttempts = 20;
+    
+    function tryQRGeneration() {
+        attempts++;
+        
+        if (typeof generateAllStaticQRs === 'function') {
+            generateAllStaticQRs();
+            return;
+        }
+        
+        if (attempts < maxAttempts) {
+            setTimeout(tryQRGeneration, 50);
+        }
+    }
+    
+    tryQRGeneration();
+}
+
+function initializeURLValidation() {
+    const urlInput = document.getElementById('url');
+    const form = document.querySelector('.create-form');
+    
+    if (urlInput) {
+        // Remove any built-in browser validation
+        urlInput.removeAttribute('pattern');
+        
+        urlInput.addEventListener('input', function() {
+            const value = this.value.trim();
+            this.classList.remove('valid-url', 'invalid-url');
+            
+            if (value) {
+                const isValid = validateUrlFormat(value);
+                this.classList.add(isValid ? 'valid-url' : 'invalid-url');
+            }
+        });
+    }
+    
+    // Add form submit handler to ensure we can submit flexible URLs
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const urlValue = urlInput.value.trim();
+            
+            // Allow submission if URL has at least a dot (basic domain check)
+            if (urlValue && (urlValue.includes('.') || urlValue.startsWith('http'))) {
+                return true; // Allow submission
+            }
+            
+            // Only prevent submission if completely empty or clearly invalid
+            if (!urlValue) {
+                e.preventDefault();
+                alert('Please enter a URL');
+                return false;
+            }
+        });
+    }
+}
+
+function initializeExpirationToggle() {
+    const expirationSelect = document.getElementById('expiration');
+    if (expirationSelect) {
+        expirationSelect.addEventListener('change', function() {
+            const customGroup = document.getElementById('custom-date-group');
+            if (this.value === 'custom') {
+                customGroup.style.display = 'block';
+                document.getElementById('custom_date').required = true;
+            } else {
+                customGroup.style.display = 'none';
+                document.getElementById('custom_date').required = false;
+            }
+        });
+    }
+}
+
+function initializeBulkControls() {
+    const selectAllCheckbox = document.getElementById('select-all');
+    const linkCheckboxes = document.querySelectorAll('.link-checkbox');
+    
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+            linkCheckboxes.forEach(checkbox => {
+                checkbox.checked = this.checked;
+            });
+            updateBulkControls();
+        });
+    }
+
+    linkCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateBulkControls);
+    });
+}
+</script>
 {% endblock %}
 
 {% block scripts %}
 <script>
-// Expiration date toggle
-document.getElementById('expiration').addEventListener('change', function() {
-    const customGroup = document.getElementById('custom-date-group');
-    if (this.value === 'custom') {
-        customGroup.style.display = 'block';
-        document.getElementById('custom_date').required = true;
-    } else {
-        customGroup.style.display = 'none';
-        document.getElementById('custom_date').required = false;
-    }
-});
-
-// Bulk selection functionality
-const selectAllCheckbox = document.getElementById('select-all');
-const linkCheckboxes = document.querySelectorAll('.link-checkbox');
-const bulkControls = document.getElementById('bulk-controls');
-const selectedCount = document.getElementById('selected-count');
+// Utility functions
+function validateUrlFormat(url) {
+    // Very permissive validation - just check for basic domain patterns
+    if (!url || !url.trim()) return false;
+    
+    const trimmed = url.trim();
+    
+    // Allow anything with a dot (domain), or starting with http/https
+    return trimmed.includes('.') || trimmed.startsWith('http://') || trimmed.startsWith('https://');
+}
 
 function updateBulkControls() {
     const checkedBoxes = document.querySelectorAll('.link-checkbox:checked');
     const count = checkedBoxes.length;
+    const selectAllCheckbox = document.getElementById('select-all');
+    const bulkControls = document.getElementById('bulk-controls');
+    const selectedCount = document.getElementById('selected-count');
 
-    selectedCount.textContent = count;
-    bulkControls.style.display = count > 0 ? 'flex' : 'none';
-
-    selectAllCheckbox.indeterminate = count > 0 && count < linkCheckboxes.length;
-    selectAllCheckbox.checked = count === linkCheckboxes.length && count > 0;
+    if (selectedCount) selectedCount.textContent = count;
+    if (bulkControls) bulkControls.style.display = count > 0 ? 'flex' : 'none';
+    if (selectAllCheckbox) {
+        const linkCheckboxes = document.querySelectorAll('.link-checkbox');
+        selectAllCheckbox.indeterminate = count > 0 && count < linkCheckboxes.length;
+        selectAllCheckbox.checked = count === linkCheckboxes.length && count > 0;
+    }
 }
 
-selectAllCheckbox.addEventListener('change', function() {
-    linkCheckboxes.forEach(checkbox => {
-        checkbox.checked = this.checked;
-    });
-    updateBulkControls();
-});
-
-linkCheckboxes.forEach(checkbox => {
-    checkbox.addEventListener('change', updateBulkControls);
-});
-
-// Dynamic link editing (inline editing)
+// Dynamic link editing
 function editDestination(linkId) {
     document.getElementById(`edit-form-${linkId}`).style.display = 'block';
     document.getElementById(`edit-btn-${linkId}`).style.display = 'none';
@@ -332,39 +429,7 @@ async function saveDestination(linkId) {
     }
 }
 
-// QR code expansion
-function expandQR(linkId) {
-    const modal = document.getElementById(`qr-modal-${linkId}`);
-    const canvas = document.getElementById(`qr-large-${linkId}`);
-
-    // Generate large QR code
-    const url = `{{ request.url_root }}{{ username }}/` + linkId; // This will need to be fixed
-    const qr = qrcode(0, 'M');
-    qr.addData(document.querySelector(`#qr-modal-${linkId} .qr-url`).textContent);
-    qr.make();
-
-    canvas.width = 300;
-    canvas.height = 300;
-    const ctx = canvas.getContext('2d');
-
-    // Draw QR code
-    const modules = qr.getModuleCount();
-    const tileW = canvas.width / modules;
-    const tileH = canvas.height / modules;
-
-    for (let row = 0; row < modules; row++) {
-        for (let col = 0; col < modules; col++) {
-            ctx.fillStyle = qr.isDark(row, col) ? '#1e3a8a' : '#000000';
-            ctx.fillRect(col * tileW, row * tileH, tileW, tileH);
-        }
-    }
-
-    modal.style.display = 'block';
-}
-
-function closeQR(linkId) {
-    document.getElementById(`qr-modal-${linkId}`).style.display = 'none';
-}
+// QR code functions moved to main.js to avoid duplicates
 
 // Bulk operations
 function bulkDelete() {
@@ -466,6 +531,36 @@ document.addEventListener('click', function(e) {
     if (e.target && e.target.classList.contains('copy-btn')) {
         const link = e.target.getAttribute('data-link');
         copyToClipboard(link);
+    }
+});
+
+// URL validation and normalization
+document.addEventListener('DOMContentLoaded', function() {
+    const urlInput = document.getElementById('url');
+    
+    if (urlInput) {
+        // Add real-time validation feedback
+        urlInput.addEventListener('input', function() {
+            const value = this.value.trim();
+            
+            // Remove any previous validation styling
+            this.classList.remove('valid-url', 'invalid-url');
+            
+            if (value) {
+                // Check if it looks like a valid URL (basic check)
+                const isValid = validateUrlFormat(value);
+                this.classList.add(isValid ? 'valid-url' : 'invalid-url');
+            }
+        });
+        
+        // Auto-format URL on blur (when user leaves the field)
+        urlInput.addEventListener('blur', function() {
+            const value = this.value.trim();
+            if (value && !value.startsWith('http://') && !value.startsWith('https://')) {
+                this.value = value;
+                // Backend will add https:// automatically
+            }
+        });
     }
 });
 

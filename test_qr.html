@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>QR Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+    <style>
+        .test-modal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .test-content {
+            background: #111;
+            padding: 2rem;
+            border-radius: 12px;
+            text-align: center;
+            color: white;
+        }
+        canvas { border: 2px solid #333; }
+        button { margin: 10px; padding: 10px 20px; }
+    </style>
+</head>
+<body style="background: #000; color: white; font-family: Arial;">
+    <h1>QR Generation Test</h1>
+    <button onclick="testQR()">Test QR Generation</button>
+    <button onclick="showModal()">Test Modal</button>
+    
+    <div id="test-modal" class="test-modal" style="display: none;">
+        <div class="test-content">
+            <h3>QR Code Test</h3>
+            <canvas id="test-canvas" width="300" height="300"></canvas>
+            <br>
+            <button onclick="hideModal()">Close</button>
+        </div>
+    </div>
+
+    <script>
+        function testQR() {
+            const canvas = document.getElementById('test-canvas');
+            const ctx = canvas.getContext('2d');
+            const testUrl = 'http://localhost:5000/test123';
+            
+            console.log('Testing QR generation for:', testUrl);
+            
+            try {
+                const qr = qrcode(0, 'M');
+                qr.addData(testUrl);
+                qr.make();
+                
+                // Clear canvas
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, 300, 300);
+                
+                // Draw QR
+                const modules = qr.getModuleCount();
+                const tileW = 300 / modules;
+                const tileH = 300 / modules;
+                
+                ctx.fillStyle = '#000000';
+                for (let row = 0; row < modules; row++) {
+                    for (let col = 0; col < modules; col++) {
+                        if (qr.isDark(row, col)) {
+                            ctx.fillRect(col * tileW, row * tileH, tileW, tileH);
+                        }
+                    }
+                }
+                console.log('QR generated successfully');
+            } catch (error) {
+                console.error('QR generation failed:', error);
+            }
+        }
+        
+        function showModal() {
+            document.getElementById('test-modal').style.display = 'flex';
+            setTimeout(testQR, 100);
+        }
+        
+        function hideModal() {
+            document.getElementById('test-modal').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

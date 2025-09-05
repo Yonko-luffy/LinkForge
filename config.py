@@ -32,7 +32,7 @@ class Config:
 
 class DevelopmentConfig(Config):
     """Development configuration."""
-    DEBUG = True
+    pass  # DEBUG is inherited from Config class via environment variable
 
 class ProductionConfig(Config):
     """Production configuration."""

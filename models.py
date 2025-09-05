@@ -12,7 +12,8 @@ Database operations for fully-featured URL shortener with:
 All features are fully implemented and working.
 """
 
-import sqlite3
+import psycopg2
+import psycopg2.extras
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import os
@@ -21,72 +22,60 @@ class DatabaseManager:
     """
     Database manager handling all database operations.
 
-    Uses SQLite with proper schema design for all implemented features.
+    Uses PostgreSQL with proper schema design for all implemented features.
     No placeholders - every feature in the schema is fully functional.
     """
 
-    def __init__(self, db_path=None):
-        self.db_path = db_path or 'linkforge.db'
+    def __init__(self, db_url=None):
+        self.db_url = db_url or os.environ.get('DATABASE_URL')
         self.init_database()
 
     def get_connection(self):
-        """Create database connection with row factory for dict-like access."""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        """Create PostgreSQL connection with dict cursor."""
+        conn = psycopg2.connect(self.db_url, cursor_factory=psycopg2.extras.RealDictCursor)
         return conn
 
     def init_database(self):
-        """Initialize database with complete schema for all features."""
+        """Initialize PostgreSQL database with complete schema for all features."""
         conn = self.get_connection()
         cursor = conn.cursor()
-
-        # Users table - user authentication
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                email TEXT UNIQUE NOT NULL,
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(255) UNIQUE NOT NULL,
+                email VARCHAR(255) UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-
-        # Links table - complete with all implemented features
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS links (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 original_url TEXT NOT NULL,
-                short_code TEXT UNIQUE NOT NULL,
-                display_name TEXT NOT NULL,
+                short_code VARCHAR(255) UNIQUE NOT NULL,
+                display_name VARCHAR(255) NOT NULL,
                 password_hash TEXT DEFAULT NULL,
-                expiration_date TEXT DEFAULT NULL,
+                expiration_date TIMESTAMP DEFAULT NULL,
                 clicks INTEGER DEFAULT 0,
-                is_active BOOLEAN DEFAULT 1,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-
-        # Clicks table - analytics for click tracking
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS clicks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                link_id INTEGER NOT NULL,
-                ip_address TEXT,
+                id SERIAL PRIMARY KEY,
+                link_id INTEGER NOT NULL REFERENCES links(id) ON DELETE CASCADE,
+                ip_address VARCHAR(64),
                 referrer TEXT DEFAULT 'Direct',
                 user_agent TEXT DEFAULT '',
-                clicked_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (link_id) REFERENCES links (id) ON DELETE CASCADE
+                clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-
-        # Create indexes for performance
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_links_user_id ON links(user_id)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_links_short_code ON links(short_code)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_clicks_link_id ON clicks(link_id)')
-
         conn.commit()
         conn.close()
 
@@ -96,6 +85,7 @@ def create_user(username, email, password):
     """Create new user with validation."""
     db = DatabaseManager()
     conn = db.get_connection()
+    cursor = conn.cursor()
 
     try:
         # Validation
@@ -109,23 +99,24 @@ def create_user(username, email, password):
             return {'success': False, 'message': 'Password must be at least 6 characters'}
 
         # Check existing users
-        existing = conn.execute(
-            'SELECT id FROM users WHERE username = ? OR email = ?',
+        cursor.execute(
+            'SELECT id FROM users WHERE username = %s OR email = %s',
             (username, email)
-        ).fetchone()
+        )
+        existing = cursor.fetchone()
 
         if existing:
             return {'success': False, 'message': 'Username or email already exists'}
 
         # Create user
         password_hash = generate_password_hash(password)
-        cursor = conn.execute(
-            'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',
+        cursor.execute(
+            'INSERT INTO users (username, email, password_hash) VALUES (%s, %s, %s) RETURNING id',
             (username, email, password_hash)
         )
-
+        user_id = cursor.fetchone()['id']
         conn.commit()
-        return {'success': True, 'user_id': cursor.lastrowid}
+        return {'success': True, 'user_id': user_id}
 
     except Exception as e:
         return {'success': False, 'message': 'Database error'}
@@ -137,12 +128,14 @@ def authenticate_user(username_or_email, password):
     """Authenticate user login credentials."""
     db = DatabaseManager()
     conn = db.get_connection()
+    cursor = conn.cursor()
 
     try:
-        user = conn.execute(
-            'SELECT * FROM users WHERE username = ? OR email = ?',
+        cursor.execute(
+            'SELECT * FROM users WHERE username = %s OR email = %s',
             (username_or_email, username_or_email)
-        ).fetchone()
+        )
+        user = cursor.fetchone()
 
         if user and check_password_hash(user['password_hash'], password):
             return {
@@ -162,12 +155,14 @@ def get_user_by_id(user_id):
     """Get user by ID."""
     db = DatabaseManager()
     conn = db.get_connection()
+    cursor = conn.cursor()
 
     try:
-        user = conn.execute(
-            'SELECT id, username, email, created_at FROM users WHERE id = ?',
+        cursor.execute(
+            'SELECT id, username, email, created_at FROM users WHERE id = %s',
             (user_id,)
-        ).fetchone()
+        )
+        user = cursor.fetchone()
 
         return dict(user) if user else None
     except Exception:
@@ -194,6 +189,7 @@ def create_link(user_id, original_url, display_name, short_code, password=None, 
     """
     db = DatabaseManager()
     conn = db.get_connection()
+    cursor = conn.cursor()
 
     try:
         # Calculate expiration date if specified
@@ -207,26 +203,26 @@ def create_link(user_id, original_url, display_name, short_code, password=None, 
             password_hash = generate_password_hash(password.strip())
 
         # Check for existing short code
-        existing = conn.execute(
-            'SELECT id FROM links WHERE short_code = ?',
+        cursor.execute(
+            'SELECT id FROM links WHERE short_code = %s',
             (short_code,)
-        ).fetchone()
+        )
+        existing = cursor.fetchone()
 
         if existing:
             return {'success': False, 'message': 'Short code already exists'}
 
         # Create link
-        cursor = conn.execute("""
+        cursor.execute("""
             INSERT INTO links 
             (user_id, original_url, short_code, display_name, password_hash, expiration_date)
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
         """, (user_id, original_url, short_code, display_name, password_hash, expiration_date))
-
+        link_id = cursor.fetchone()['id']
         conn.commit()
-
         return {
             'success': True,
-            'link_id': cursor.lastrowid,
+            'link_id': link_id,
             'short_code': short_code
         }
 
@@ -240,21 +236,22 @@ def get_user_links(user_id, search_query=None):
     """Get all links for a user with optional search."""
     db = DatabaseManager()
     conn = db.get_connection()
+    cursor = conn.cursor()
 
     try:
         if search_query:
-            links = conn.execute("""
+            cursor.execute("""
                 SELECT * FROM links 
-                WHERE user_id = ? 
-                AND (display_name LIKE ? OR original_url LIKE ? OR short_code LIKE ?)
+                WHERE user_id = %s 
+                AND (display_name ILIKE %s OR original_url ILIKE %s OR short_code ILIKE %s)
                 ORDER BY created_at DESC
-            """, (user_id, f'%{search_query}%', f'%{search_query}%', f'%{search_query}%')).fetchall()
+            """, (user_id, f'%{search_query}%', f'%{search_query}%', f'%{search_query}%'))
         else:
-            links = conn.execute(
-                'SELECT * FROM links WHERE user_id = ? ORDER BY created_at DESC',
+            cursor.execute(
+                'SELECT * FROM links WHERE user_id = %s ORDER BY created_at DESC',
                 (user_id,)
-            ).fetchall()
-
+            )
+        links = cursor.fetchall()
         return [dict(link) for link in links]
 
     except Exception:
@@ -267,12 +264,14 @@ def get_link_by_short_code(short_code):
     """Get link by short code for redirection."""
     db = DatabaseManager()
     conn = db.get_connection()
+    cursor = conn.cursor()
 
     try:
-        link = conn.execute(
-            'SELECT * FROM links WHERE short_code = ?',
+        cursor.execute(
+            'SELECT * FROM links WHERE short_code = %s',
             (short_code,)
-        ).fetchone()
+        )
+        link = cursor.fetchone()
 
         return dict(link) if link else None
 
@@ -291,18 +290,17 @@ def update_link_url(link_id, user_id, new_url):
     """
     db = DatabaseManager()
     conn = db.get_connection()
+    cursor = conn.cursor()
 
     try:
         # Verify user owns the link
-        result = conn.execute("""
+        cursor.execute("""
             UPDATE links 
-            SET original_url = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ? AND user_id = ?
+            SET original_url = %s, updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s AND user_id = %s
         """, (new_url, link_id, user_id))
-
         conn.commit()
-
-        if result.rowcount > 0:
+        if cursor.rowcount > 0:
             return {'success': True, 'message': 'Link updated successfully'}
         else:
             return {'success': False, 'message': 'Link not found or access denied'}
@@ -317,29 +315,28 @@ def delete_links(link_ids, user_id):
     """Delete multiple links (bulk delete)."""
     db = DatabaseManager()
     conn = db.get_connection()
+    cursor = conn.cursor()
 
     try:
         # Convert link_ids to placeholders for SQL
-        placeholders = ','.join('?' for _ in link_ids)
+        placeholders = ','.join(['%s'] * len(link_ids))
         params = link_ids + [user_id]
-
         # Delete clicks first (foreign key constraint)
-        conn.execute(f"""
+        cursor.execute(f"""
             DELETE FROM clicks 
             WHERE link_id IN (
                 SELECT id FROM links 
-                WHERE id IN ({placeholders}) AND user_id = ?
+                WHERE id IN ({placeholders}) AND user_id = %s
             )
         """, params)
-
         # Delete links
-        result = conn.execute(f"""
+        cursor.execute(f"""
             DELETE FROM links 
-            WHERE id IN ({placeholders}) AND user_id = ?
+            WHERE id IN ({placeholders}) AND user_id = %s
         """, params)
-
+        deleted_count = cursor.rowcount
         conn.commit()
-        return {'success': True, 'deleted_count': result.rowcount}
+        return {'success': True, 'deleted_count': deleted_count}
 
     except Exception as e:
         return {'success': False, 'message': f'Delete failed: {str(e)}'}
@@ -351,20 +348,19 @@ def record_click(link_id, ip_address=None, referrer=None, user_agent=None):
     """Record click analytics."""
     db = DatabaseManager()
     conn = db.get_connection()
+    cursor = conn.cursor()
 
     try:
         # Record click
-        conn.execute("""
+        cursor.execute("""
             INSERT INTO clicks (link_id, ip_address, referrer, user_agent)
-            VALUES (?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s)
         """, (link_id, ip_address, referrer or 'Direct', user_agent or ''))
-
         # Increment counter
-        conn.execute(
-            'UPDATE links SET clicks = clicks + 1 WHERE id = ?',
+        cursor.execute(
+            'UPDATE links SET clicks = clicks + 1 WHERE id = %s',
             (link_id,)
         )
-
         conn.commit()
         return True
 
@@ -401,25 +397,27 @@ def get_user_stats(user_id):
     """Get user statistics for dashboard."""
     db = DatabaseManager()
     conn = db.get_connection()
+    cursor = conn.cursor()
 
     try:
         # Get basic stats
-        stats = conn.execute("""
+        cursor.execute("""
             SELECT 
                 COUNT(*) as total_links,
-                SUM(clicks) as total_clicks,
-                COUNT(CASE WHEN is_active = 1 THEN 1 END) as active_links
+                COALESCE(SUM(clicks), 0) as total_clicks,
+                COUNT(CASE WHEN is_active = TRUE THEN 1 END) as active_links
             FROM links 
-            WHERE user_id = ?
-        """, (user_id,)).fetchone()
-
+            WHERE user_id = %s
+        """, (user_id,))
+        stats = cursor.fetchone()
         # Count expired links
-        now = datetime.now().isoformat()
-        expired = conn.execute("""
+        now = datetime.now()
+        cursor.execute("""
             SELECT COUNT(*) as expired_count
             FROM links 
-            WHERE user_id = ? AND expiration_date IS NOT NULL AND expiration_date < ?
-        """, (user_id, now)).fetchone()
+            WHERE user_id = %s AND expiration_date IS NOT NULL AND expiration_date < %s
+        """, (user_id, now))
+        expired = cursor.fetchone()
 
         return {
             'total_links': stats['total_links'] or 0,

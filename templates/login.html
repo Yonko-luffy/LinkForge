@@ -8,14 +8,24 @@
         <h1>Welcome Back</h1>
         <p>Sign in to manage your dynamic links</p>
 
-        <form method="POST">
+        <form method="POST" autocomplete="on">
             <div class="form-group">
                 <label for="username">Username or Email</label>
-                <input type="text" id="username" name="username" required autocomplete="username">
+                <input type="text" 
+                       id="username" 
+                       name="username" 
+                       required 
+                       autocomplete="username" 
+                       placeholder="Enter your username or email">
             </div>
             <div class="form-group">
                 <label for="password">Password</label>
-                <input type="password" id="password" name="password" required autocomplete="current-password">
+                <input type="password" 
+                       id="password" 
+                       name="password" 
+                       required 
+                       autocomplete="current-password"
+                       placeholder="Enter your password">
             </div>
             <button type="submit" class="btn btn-primary btn-full">🔑 Login</button>
         </form>

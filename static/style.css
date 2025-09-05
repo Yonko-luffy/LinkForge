@@ -200,6 +200,25 @@ body {
     font-size: 0.85rem;
 }
 
+.form-help {
+    display: block;
+    margin-top: 0.25rem;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-style: italic;
+}
+
+/* URL validation feedback */
+.valid-url {
+    border-color: var(--success) !important;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2) !important;
+}
+
+.invalid-url {
+    border-color: var(--warning) !important;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2) !important;
+}
+
 .form-control {
     padding: 0.5rem;
     background: var(--bg-primary);
@@ -542,57 +561,34 @@ body {
     opacity: 1;
 }
 
-/* QR Modal */
-.qr-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.9);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-}
+/* ========== STATIC QR CODE - ALWAYS VISIBLE ========== */
 
-.qr-modal-content {
-    background: var(--bg-secondary);
-    padding: 2rem;
-    border-radius: 12px;
-    text-align: center;
-    max-width: 90vw;
-    max-height: 90vh;
-    border: 2px solid var(--accent);
-}
-
-.qr-modal-content h4 {
-    color: var(--accent);
-    margin-bottom: 1rem;
-}
-
-.qr-large {
-    margin: 1rem 0;
-}
-
-.qr-large canvas {
-    border-radius: 8px;
-    border: 2px solid var(--border);
-}
-
-.qr-actions {
+.qr-static {
     display: flex;
-    gap: 1rem;
-    justify-content: center;
-    margin-top: 1rem;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    text-align: center;
 }
 
-.qr-url {
-    color: var(--text-muted);
-    font-family: 'Courier New', monospace;
-    margin-top: 1rem;
-    word-break: break-all;
+.qr-canvas {
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #ffffff;
+    display: block;
 }
+
+.qr-download {
+    margin-top: 0.5rem;
+    width: 100%;
+    text-align: center;
+}
+
+/* ========== END STATIC QR ========== */
 
 /* Link Actions */
 .link-actions {
