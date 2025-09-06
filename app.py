@@ -60,7 +60,7 @@ db_manager = DatabaseManager()
 
 if __name__ == '__main__':
     # 🔧 Environment Configuration
-    # Extract port from environment variable (required for Heroku deployment)
+    # Extract port from environment variable (required for deployment)
     import os
     port = int(os.environ.get('PORT', 5000))
     
