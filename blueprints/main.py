@@ -12,9 +12,6 @@ main_bp = Blueprint('main', __name__)
 @main_bp.route('/')
 def landing():
     """Enhanced landing page with detailed information."""
-    if 'user_id' in session:
-        return redirect(url_for('links.dashboard'))
-
     return render_template('landing.html')
 
 @main_bp.route('/features')

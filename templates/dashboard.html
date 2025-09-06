@@ -179,20 +179,12 @@
                     </div>
 
                     <div class="link-qr">
-                        <!-- Static QR Code - Always Visible -->
+                        <!-- Pure Server-Side QR Code -->
                         <div class="qr-static">
-                            <!-- JavaScript Canvas QR (Primary) -->
-                            <canvas id="qr-static-{{ link.id }}" width="120" height="120" class="qr-canvas" 
-                                    data-url="{{ request.url_root }}{{ link.short_code }}" 
-                                    style="display: block; border: 1px solid #ddd;"></canvas>
-                            
-                            <!-- Server-Generated QR Fallback (Hidden by default) -->
-                            <img id="qr-image-{{ link.id }}" 
-                                 src="{{ url_for('links.qr_image', link_id=link.id) }}" 
-                                 alt="QR Code" 
+                            <img src="{{ url_for('links.qr_image', link_id=link.id) }}" 
+                                 alt="QR Code for {{ link.display_name }}" 
                                  width="120" height="120"
-                                 style="display: none; border: 1px solid #ddd;"
-                                 onerror="this.style.display='none'; document.getElementById('qr-static-{{ link.id }}').style.display='block';">
+                                 style="border: 1px solid #ddd; border-radius: 6px;">
                             
                             <a href="{{ url_for('links.download_qr', link_id=link.id) }}" 
                                class="btn btn-primary btn-small qr-download" download>
@@ -236,14 +228,9 @@
     <div id="bulk-qr-inputs"></div>
 </form>
 
-<script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.min.js"></script>
-<script src="{{ url_for('static', filename='main.js') }}"></script>
 <script>
-// Initialize functions on page load
+// Simple form validation and UI interactions (backend-focused)
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize QR generation
-    initializeQRGeneration();
-    
     // Initialize form validation
     initializeURLValidation();
     
@@ -253,26 +240,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize bulk controls
     initializeBulkControls();
 });
-
-function initializeQRGeneration() {
-    let attempts = 0;
-    const maxAttempts = 20;
-    
-    function tryQRGeneration() {
-        attempts++;
-        
-        if (typeof generateAllStaticQRs === 'function') {
-            generateAllStaticQRs();
-            return;
-        }
-        
-        if (attempts < maxAttempts) {
-            setTimeout(tryQRGeneration, 50);
-        }
-    }
-    
-    tryQRGeneration();
-}
 
 function initializeURLValidation() {
     const urlInput = document.getElementById('url');

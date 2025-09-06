@@ -333,6 +333,125 @@ def delete_single_link(link_id):
 
     return redirect(url_for('links.dashboard'))
 
+def get_selected_links(user_id, selected_link_ids):
+    """
+    Helper function to get selected links for bulk operations.
+    
+    Demonstrates DRY (Don't Repeat Yourself) principle - a key backend skill.
+    Used by bulk_delete, bulk_export_csv, and bulk_qr_download.
+    """
+    if not selected_link_ids:
+        return []
+    
+    db = DatabaseManager()
+    conn = db.get_connection()
+    cursor = conn.cursor()
+
+    try:
+        placeholders = ','.join('%s' for _ in selected_link_ids)
+        params = selected_link_ids + [user_id]
+
+        cursor.execute(f"""
+            SELECT * FROM links 
+            WHERE id IN ({placeholders}) AND user_id = %s
+        """, params)
+        links = cursor.fetchall()
+        
+        return [dict(link) for link in links]
+
+    except Exception as e:
+        print(f"Error getting selected links: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+@links_bp.route('/api/links')
+def api_get_links():
+    """
+    RESTful API endpoint returning user's links as JSON.
+    
+    Demonstrates backend API design skills - critical for backend developers.
+    Returns structured JSON data that could be consumed by mobile apps, etc.
+    """
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authorized'}), 401
+
+    user_id = session['user_id']
+    
+    try:
+        links = get_user_links(user_id)
+        
+        # Format links for API response
+        api_links = []
+        for link in links:
+            api_links.append({
+                'id': link['id'],
+                'short_code': link['short_code'],
+                'original_url': link['original_url'],
+                'display_name': link['display_name'],
+                'clicks': link['clicks'],
+                'is_active': link['is_active'],
+                'created_at': link['created_at'],
+                'qr_url': url_for('links.qr_image', link_id=link['id'], _external=True)
+            })
+        
+        return jsonify({
+            'success': True,
+            'links': api_links,
+            'total': len(api_links)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': 'Internal server error'}), 500
+
+@links_bp.route('/api/links/<int:link_id>')
+def api_get_link(link_id):
+    """
+    RESTful API endpoint for single link details.
+    
+    Demonstrates parameterized routes and proper HTTP status codes.
+    """
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authorized'}), 401
+
+    user_id = session['user_id']
+    
+    try:
+        db = DatabaseManager()
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            'SELECT * FROM links WHERE id = %s AND user_id = %s',
+            (link_id, user_id)
+        )
+        link = cursor.fetchone()
+        
+        if not link:
+            return jsonify({'error': 'Link not found'}), 404
+        
+        return jsonify({
+            'success': True,
+            'link': {
+                'id': link['id'],
+                'short_code': link['short_code'],
+                'original_url': link['original_url'],
+                'display_name': link['display_name'],
+                'clicks': link['clicks'],
+                'is_active': link['is_active'],
+                'created_at': link['created_at'],
+                'qr_url': url_for('links.qr_image', link_id=link['id'], _external=True),
+                'short_url': f"{request.url_root.rstrip('/')}/{link['short_code']}"
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'error': 'Internal server error'}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
 @links_bp.route('/bulk_delete', methods=['POST'])
 def bulk_delete():
     """Delete multiple selected links."""
@@ -410,7 +529,7 @@ def export_csv():
 
 @links_bp.route('/export/bulk_csv', methods=['POST'])
 def bulk_export_csv():
-    """Export selected links as CSV."""
+    """Export selected links as CSV using DRY helper function."""
     if 'user_id' not in session:
         flash('Please log in first.', 'error')
         return redirect(url_for('auth.login'))
@@ -423,57 +542,41 @@ def bulk_export_csv():
         flash('No links selected for export.', 'error')
         return redirect(url_for('links.dashboard'))
 
-    # Get selected links
-    db = DatabaseManager()
-    conn = db.get_connection()
-    cursor = conn.cursor()
+    # Use DRY helper function
+    links = get_selected_links(user_id, selected_links)
 
-    try:
-        placeholders = ','.join('%s' for _ in selected_links)
-        params = selected_links + [user_id]
+    if not links:
+        flash('No valid links found.', 'error')
+        return redirect(url_for('links.dashboard'))
 
-        cursor.execute(f"""
-            SELECT * FROM links 
-            WHERE id IN ({placeholders}) AND user_id = %s
-        """, params)
-        links = cursor.fetchall()
+    # Create CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
 
-        # Create CSV
-        output = io.StringIO()
-        writer = csv.writer(output)
+    writer.writerow([
+        'Short URL', 'Original URL', 'Display Name', 'Clicks', 
+        'Password Protected', 'Expiration Date', 'Created Date'
+    ])
 
+    for link in links:
+        short_url = f"{request.url_root.rstrip('/')}/{link['short_code']}"
         writer.writerow([
-            'Short URL', 'Original URL', 'Display Name', 'Clicks', 
-            'Password Protected', 'Expiration Date', 'Created Date'
+            short_url,
+            link['original_url'],
+            link['display_name'],
+            link['clicks'],
+            'Yes' if link['password_hash'] else 'No',
+            link['expiration_date'] or 'Never',
+            link['created_at']
         ])
 
-        for link in links:
-            short_url = f"{request.url_root.rstrip('/')}/{link['short_code']}"
-            writer.writerow([
-                short_url,
-                link['original_url'],
-                link['display_name'],
-                link['clicks'],
-                'Yes' if link['password_hash'] else 'No',
-                link['expiration_date'] or 'Never',
-                link['created_at']
-            ])
+    output.seek(0)
 
-        output.seek(0)
-
-        return Response(
-            output.getvalue(),
-            mimetype='text/csv',
-            headers={'Content-Disposition': f'attachment; filename=linkforge_selected_{username}.csv'}
-        )
-
-    except Exception as e:
-        print(f"Error in bulk_export_csv: {e}")
-        flash('Error exporting CSV.', 'error')
-        return redirect(url_for('links.dashboard'))
-    finally:
-        cursor.close()
-        conn.close()
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename=linkforge_selected_{username}.csv'}
+    )
 
 @links_bp.route('/download_qr/<int:link_id>')
 def download_qr(link_id):

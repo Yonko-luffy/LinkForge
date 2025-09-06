@@ -16,6 +16,7 @@ from flask import Flask, session, request, jsonify
 from config import get_config
 import os
 from dotenv import load_dotenv
+from db_utils import init_db_app
 load_dotenv()
 
 def create_app():
@@ -63,6 +64,9 @@ def create_app():
     from models import DatabaseManager
     with app.app_context():
         db = DatabaseManager()
+        
+    # Initialize professional database connection management
+    init_db_app(app)
 
     # Template context processor
     @app.context_processor
