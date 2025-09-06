@@ -7,7 +7,7 @@ Simple, secure, and fully working.
 """
 
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
-from models import create_user, authenticate_user
+from ..models import create_user, authenticate_user
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -50,9 +50,10 @@ def login():
             flash('Please enter both username and password.', 'error')
             return render_template('login.html')
 
-        user = authenticate_user(username, password)
+        result = authenticate_user(username, password)
 
-        if user:
+        if result['success']:
+            user = result['user']
             session['user_id'] = user['id']
             session['username'] = user['username']
             session.permanent = True

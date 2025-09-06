@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Access Forbidden - LinkForge{% endblock %}
+
+{% block content %}
+<div class="error-container">
+    <div class="error-content">
+        <div class="error-icon">🚫</div>
+        <h1>Access Forbidden</h1>
+        <p>You don't have permission to access this resource.</p>
+        
+        <div class="error-actions">
+            <a href="{{ url_for('main.landing') }}" class="btn btn-primary">Go Home</a>
+            <a href="{{ url_for('auth.login') }}" class="btn btn-secondary">Login</a>
+        </div>
+
+        <div class="error-help">
+            <h3>Why am I seeing this?</h3>
+            <p>This page or resource requires special permissions that you don't currently have.</p>
+            
+            <h3>What can you do?</h3>
+            <ul>
+                <li>Make sure you're logged in to the correct account</li>
+                <li>Check if you have the necessary permissions</li>
+                <li>Contact the person who shared the link</li>
+                <li>Try accessing from your dashboard if logged in</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<style>
+.error-container {
+    min-height: 60vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.error-content {
+    text-align: center;
+    max-width: 600px;
+}
+
+.error-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    color: var(--error);
+}
+
+.error-actions {
+    margin: 2rem 0;
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.error-help {
+    background: var(--bg-secondary);
+    padding: 2rem;
+    border-radius: 8px;
+    margin-top: 2rem;
+}
+
+.error-help h3 {
+    color: var(--accent);
+    margin-bottom: 1rem;
+}
+
+.error-help ul {
+    text-align: left;
+    color: var(--text-secondary);
+}
+
+.error-help li {
+    margin: 0.5rem 0;
+}
+
+@media (max-width: 768px) {
+    .error-actions {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .error-actions .btn {
+        width: 100%;
+        max-width: 300px;
+    }
+}
+</style>
+{% endblock %}

@@ -14,7 +14,7 @@ No placeholder code - everything is fully functional.
 """
 
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, Response, send_file, jsonify
-from db_utils import get_db_cursor, get_db_connection
+from ..db_utils import get_db_cursor, get_db_connection
 import sqlite3
 import string
 import random
@@ -27,7 +27,7 @@ import re
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import (
+from ..models import (
     DatabaseManager, create_link, get_user_links, get_link_by_short_code,
     update_link_url, delete_links, record_click, is_link_expired, 
     verify_link_password, get_user_stats

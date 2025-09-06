@@ -42,6 +42,6 @@ dist/
 # Environment and runtime files
 .env
 
-#personal explanation md files
-QR_CODE_FLOW.md
-QR_FIX_SUMMARY.md
+# Documentation and personal notes
+docs/
+*.md
