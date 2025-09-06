@@ -14,6 +14,7 @@ No placeholder code - everything is fully functional.
 """
 
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, Response, send_file, jsonify
+from db_utils import get_db_cursor, get_db_connection
 import sqlite3
 import string
 import random
@@ -335,7 +336,7 @@ def delete_single_link(link_id):
 
 def get_selected_links(user_id, selected_link_ids):
     """
-    Helper function to get selected links for bulk operations.
+    Helper function to get selected links for bulk operations using professional DB pattern.
     
     Demonstrates DRY (Don't Repeat Yourself) principle - a key backend skill.
     Used by bulk_delete, bulk_export_csv, and bulk_qr_download.
@@ -343,11 +344,9 @@ def get_selected_links(user_id, selected_link_ids):
     if not selected_link_ids:
         return []
     
-    db = DatabaseManager()
-    conn = db.get_connection()
-    cursor = conn.cursor()
-
     try:
+        cursor = get_db_cursor()
+
         placeholders = ','.join('%s' for _ in selected_link_ids)
         params = selected_link_ids + [user_id]
 
@@ -362,9 +361,6 @@ def get_selected_links(user_id, selected_link_ids):
     except Exception as e:
         print(f"Error getting selected links: {e}")
         return []
-    finally:
-        cursor.close()
-        conn.close()
 
 @links_bp.route('/api/links')
 def api_get_links():
@@ -408,7 +404,7 @@ def api_get_links():
 @links_bp.route('/api/links/<int:link_id>')
 def api_get_link(link_id):
     """
-    RESTful API endpoint for single link details.
+    RESTful API endpoint for single link details using professional DB pattern.
     
     Demonstrates parameterized routes and proper HTTP status codes.
     """
@@ -418,9 +414,7 @@ def api_get_link(link_id):
     user_id = session['user_id']
     
     try:
-        db = DatabaseManager()
-        conn = db.get_connection()
-        cursor = conn.cursor()
+        cursor = get_db_cursor()
         
         cursor.execute(
             'SELECT * FROM links WHERE id = %s AND user_id = %s',
@@ -448,9 +442,6 @@ def api_get_link(link_id):
         
     except Exception as e:
         return jsonify({'error': 'Internal server error'}), 500
-    finally:
-        cursor.close()
-        conn.close()
 
 @links_bp.route('/bulk_delete', methods=['POST'])
 def bulk_delete():
@@ -580,19 +571,16 @@ def bulk_export_csv():
 
 @links_bp.route('/download_qr/<int:link_id>')
 def download_qr(link_id):
-    """Download QR code as PNG file."""
+    """Download QR code as PNG file using professional DB pattern."""
     if 'user_id' not in session:
         flash('Please log in first.', 'error')
         return redirect(url_for('auth.login'))
 
     user_id = session['user_id']
 
-    # Get link
-    db = DatabaseManager()
-    conn = db.get_connection()
-    cursor = conn.cursor()
-
     try:
+        cursor = get_db_cursor()
+        
         cursor.execute(
             'SELECT * FROM links WHERE id = %s AND user_id = %s',
             (link_id, user_id)
@@ -616,24 +604,18 @@ def download_qr(link_id):
         print(f"Error in download_qr: {e}")
         flash('Error generating QR code download.', 'error')
         return redirect(url_for('links.dashboard'))
-    finally:
-        cursor.close()
-        conn.close()
 
 @links_bp.route('/qr_image/<int:link_id>')
 def qr_image(link_id):
-    """Serve QR code as inline image."""
+    """Serve QR code as inline image using professional DB pattern."""
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
 
     user_id = session['user_id']
 
-    # Get link
-    db = DatabaseManager()
-    conn = db.get_connection()
-    cursor = conn.cursor()
-
     try:
+        cursor = get_db_cursor()
+        
         cursor.execute(
             'SELECT * FROM links WHERE id = %s AND user_id = %s',
             (link_id, user_id)
@@ -651,9 +633,6 @@ def qr_image(link_id):
     except Exception as e:
         print(f"Error in qr_image: {e}")
         return "Error generating QR image", 500
-    finally:
-        cursor.close()
-        conn.close()
 
 @links_bp.route('/bulk_qr_download', methods=['POST'])  
 def bulk_qr_download():
@@ -670,25 +649,14 @@ def bulk_qr_download():
         flash('No links selected for QR download.', 'error')
         return redirect(url_for('links.dashboard'))
 
-    # Get selected links
-    db = DatabaseManager()
-    conn = db.get_connection()
-    cursor = conn.cursor()
+    # Use DRY helper function to get selected links
+    links = get_selected_links(user_id, selected_links)
+
+    if not links:
+        flash('No valid links found.', 'error')
+        return redirect(url_for('links.dashboard'))
 
     try:
-        placeholders = ','.join('%s' for _ in selected_links)
-        params = selected_links + [user_id]
-
-        cursor.execute(f"""
-            SELECT * FROM links 
-            WHERE id IN ({placeholders}) AND user_id = %s
-        """, params)
-        links = cursor.fetchall()
-
-        if not links:
-            flash('No valid links found.', 'error')
-            return redirect(url_for('links.dashboard'))
-
         # Create ZIP file
         zip_buffer = io.BytesIO()
 
@@ -728,6 +696,3 @@ def bulk_qr_download():
         print(f"Error in bulk_qr_download: {e}")
         flash('Error generating QR codes ZIP.', 'error')
         return redirect(url_for('links.dashboard'))
-    finally:
-        cursor.close()
-        conn.close()

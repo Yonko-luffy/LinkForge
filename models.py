@@ -1,21 +1,16 @@
 """
-LinkForge Database Models - Complete Implementation
-=================================================
+LinkForge Database Models - Professional Implementation
+======================================================
 
-Database operations for fully-featured URL shortener with:
-- Link expiration functionality
-- Password protection with hashing
-- Dynamic link management
-- User authentication
-- Click analytics
-
-All features are fully implemented and working.
+Database operations using professional Flask patterns with request-scoped connections.
+All features fully implemented with efficient database connection management.
 """
 
 import psycopg2
 import psycopg2.extras
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
+from db_utils import get_db_cursor, get_db_connection
 import os
 
 class DatabaseManager:
@@ -82,21 +77,20 @@ class DatabaseManager:
 
 # User Management Functions
 def create_user(username, email, password):
-    """Create new user with validation."""
-    db = DatabaseManager()
-    conn = db.get_connection()
-    cursor = conn.cursor()
-
+    """Create new user with validation using professional DB pattern."""
     try:
         # Validation
-        if len(username) < 3:
-            return {'success': False, 'message': 'Username must be at least 3 characters'}
-
-        if '@' not in email or len(email) < 5:
-            return {'success': False, 'message': 'Invalid email address'}
-
-        if len(password) < 6:
+        if not username or not username.strip():
+            return {'success': False, 'message': 'Username is required'}
+        
+        if not email or not email.strip():
+            return {'success': False, 'message': 'Email is required'}
+        
+        if not password or len(password) < 6:
             return {'success': False, 'message': 'Password must be at least 6 characters'}
+
+        cursor = get_db_cursor()
+        conn = get_db_connection()
 
         # Check existing users
         cursor.execute(
@@ -120,17 +114,13 @@ def create_user(username, email, password):
 
     except Exception as e:
         return {'success': False, 'message': 'Database error'}
-    finally:
-        conn.close()
 
 
 def authenticate_user(username_or_email, password):
-    """Authenticate user login credentials."""
-    db = DatabaseManager()
-    conn = db.get_connection()
-    cursor = conn.cursor()
-
+    """Authenticate user login credentials using professional DB pattern."""
     try:
+        cursor = get_db_cursor()
+        
         cursor.execute(
             'SELECT * FROM users WHERE username = %s OR email = %s',
             (username_or_email, username_or_email)
@@ -139,25 +129,25 @@ def authenticate_user(username_or_email, password):
 
         if user and check_password_hash(user['password_hash'], password):
             return {
-                'id': user['id'],
-                'username': user['username'],
-                'email': user['email']
+                'success': True,
+                'user': {
+                    'id': user['id'],
+                    'username': user['username'],
+                    'email': user['email']
+                }
             }
-        return None
+        else:
+            return {'success': False, 'message': 'Invalid credentials'}
 
     except Exception:
-        return None
-    finally:
-        conn.close()
+        return {'success': False, 'message': 'Authentication error'}
 
 
 def get_user_by_id(user_id):
-    """Get user by ID."""
-    db = DatabaseManager()
-    conn = db.get_connection()
-    cursor = conn.cursor()
-
+    """Get user by ID using professional DB pattern."""
     try:
+        cursor = get_db_cursor()
+        
         cursor.execute(
             'SELECT id, username, email, created_at FROM users WHERE id = %s',
             (user_id,)
@@ -167,14 +157,12 @@ def get_user_by_id(user_id):
         return dict(user) if user else None
     except Exception:
         return None
-    finally:
-        conn.close()
 
 
 # Link Management Functions
 def create_link(user_id, original_url, display_name, short_code, password=None, expiration_days=None):
     """
-    Create new link with all features implemented.
+    Create new link with all features implemented using professional DB pattern.
 
     Args:
         user_id: User creating the link
@@ -187,11 +175,10 @@ def create_link(user_id, original_url, display_name, short_code, password=None, 
     Returns:
         dict: Success status and details
     """
-    db = DatabaseManager()
-    conn = db.get_connection()
-    cursor = conn.cursor()
-
     try:
+        cursor = get_db_cursor()
+        conn = get_db_connection()
+
         # Calculate expiration date if specified
         expiration_date = None
         if expiration_days and expiration_days > 0:
@@ -228,17 +215,13 @@ def create_link(user_id, original_url, display_name, short_code, password=None, 
 
     except Exception as e:
         return {'success': False, 'message': f'Database error: {str(e)}'}
-    finally:
-        conn.close()
 
 
 def get_user_links(user_id, search_query=None):
-    """Get all links for a user with optional search."""
-    db = DatabaseManager()
-    conn = db.get_connection()
-    cursor = conn.cursor()
-
+    """Get all links for a user with optional search using professional DB pattern."""
     try:
+        cursor = get_db_cursor()
+
         if search_query:
             cursor.execute("""
                 SELECT * FROM links 
@@ -256,17 +239,13 @@ def get_user_links(user_id, search_query=None):
 
     except Exception:
         return []
-    finally:
-        conn.close()
 
 
 def get_link_by_short_code(short_code):
-    """Get link by short code for redirection."""
-    db = DatabaseManager()
-    conn = db.get_connection()
-    cursor = conn.cursor()
-
+    """Get link by short code for redirection using professional DB pattern."""
     try:
+        cursor = get_db_cursor()
+        
         cursor.execute(
             'SELECT * FROM links WHERE short_code = %s',
             (short_code,)
@@ -277,22 +256,19 @@ def get_link_by_short_code(short_code):
 
     except Exception:
         return None
-    finally:
-        conn.close()
 
 
 def update_link_url(link_id, user_id, new_url):
     """
-    Update link destination URL (dynamic link feature).
+    Update link destination URL (dynamic link feature) using professional DB pattern.
 
     This is the core dynamic functionality - users can change
     where their links redirect without changing the short code.
     """
-    db = DatabaseManager()
-    conn = db.get_connection()
-    cursor = conn.cursor()
-
     try:
+        cursor = get_db_cursor()
+        conn = get_db_connection()
+
         # Verify user owns the link
         cursor.execute("""
             UPDATE links 
@@ -307,17 +283,14 @@ def update_link_url(link_id, user_id, new_url):
 
     except Exception as e:
         return {'success': False, 'message': f'Update failed: {str(e)}'}
-    finally:
-        conn.close()
 
 
 def delete_links(link_ids, user_id):
-    """Delete multiple links (bulk delete)."""
-    db = DatabaseManager()
-    conn = db.get_connection()
-    cursor = conn.cursor()
-
+    """Delete multiple links (bulk delete) using professional DB pattern."""
     try:
+        cursor = get_db_cursor()
+        conn = get_db_connection()
+
         # Convert link_ids to placeholders for SQL
         placeholders = ','.join(['%s'] * len(link_ids))
         params = link_ids + [user_id]
@@ -340,17 +313,14 @@ def delete_links(link_ids, user_id):
 
     except Exception as e:
         return {'success': False, 'message': f'Delete failed: {str(e)}'}
-    finally:
-        conn.close()
 
 
 def record_click(link_id, ip_address=None, referrer=None, user_agent=None):
-    """Record click analytics."""
-    db = DatabaseManager()
-    conn = db.get_connection()
-    cursor = conn.cursor()
-
+    """Record click analytics using professional DB pattern."""
     try:
+        cursor = get_db_cursor()
+        conn = get_db_connection()
+
         # Record click
         cursor.execute("""
             INSERT INTO clicks (link_id, ip_address, referrer, user_agent)
@@ -366,8 +336,6 @@ def record_click(link_id, ip_address=None, referrer=None, user_agent=None):
 
     except Exception:
         return False
-    finally:
-        conn.close()
 
 
 def is_link_expired(link):
@@ -394,12 +362,10 @@ def verify_link_password(link, provided_password):
 
 
 def get_user_stats(user_id):
-    """Get user statistics for dashboard."""
-    db = DatabaseManager()
-    conn = db.get_connection()
-    cursor = conn.cursor()
-
+    """Get user statistics for dashboard using professional DB pattern."""
     try:
+        cursor = get_db_cursor()
+
         # Get basic stats
         cursor.execute("""
             SELECT 
@@ -433,5 +399,3 @@ def get_user_stats(user_id):
             'active_links': 0,
             'expired_links': 0
         }
-    finally:
-        conn.close()
